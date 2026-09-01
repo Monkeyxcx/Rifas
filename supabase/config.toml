@@ -1,0 +1,50 @@
+# Supabase CLI config
+# https://supabase.com/docs/guides/cli/config
+project_id = "rifascenter"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 16
+migrations = true
+seed.enabled = true
+seed.sql_paths = ["seed.sql"]
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://localhost:3000", "http://127.0.0.1:3000"]
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+double_confirm_changes = true
+secure_passwords = true
+
+[auth.smtp]
+host = ""
+port = 0
+# auth smtp lo gestiona Supabase Cloud en staging/prod.
+# Localhost: usa el built-in Inbucket.
+
+[storage]
+enabled = true
+file_size_limit = 20971520 # 20MB
+
+[analytics]
+enabled = true
+port = 54327
+
+[inbucket]
+enabled = true
+port = 54324
+
+[experimental]
+enable_tunnel = false
