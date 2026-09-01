@@ -123,6 +123,7 @@ module.exports = {
   },
   plugins: [
     require("@tailwindcss/typography"),
+    require("tailwindcss-animate"),
     function ({ addUtilities }) {
       addUtilities({
         ".font-numbers": {
