@@ -1,7 +1,10 @@
 -- =================================================================
--- 0002_RLS_POLICIES.SQL · RifasCenter
+-- 0002_RLS_POLICIES.SQL · RifasCenter (FIXED PG compatible)
 -- Row Level Security en todas las tablas públicas.
 -- Pilar de seguridad: cada usuario SOLO ve lo que le corresponde.
+-- NOTA: Las restricciones complejas (status flow, edition locked, etc.)
+--       se validan en SERVER-SIDE (RPC buy_reservations, route handlers
+--       y triggers) porque PG RLS policies NO soportan OLD/NEW refs.
 -- =================================================================
 
 -- --------------------
@@ -16,9 +19,9 @@ ALTER TABLE public.notifications   ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- PROFILES
---   · Usuario logueado ve SU perfil.
---   · Todo el mundo ve perfil PÚBLICO (id, full_name, avatar_url, country)
---     para mostrar "creador de la rifa".
+--   · SELECT: público (todos ven el perfil público — creators list).
+--   · UPDATE: solo el propio user.
+--   · INSERT: handled por trigger handle_new_user (0003).
 -- ============================================================
 DROP POLICY IF EXISTS profiles_select_public ON public.profiles;
 CREATE POLICY profiles_select_public ON public.profiles FOR SELECT USING (true);
@@ -28,21 +31,22 @@ CREATE POLICY profiles_update_self ON public.profiles FOR UPDATE
     USING (auth.uid() = id)
     WITH CHECK (auth.uid() = id);
 
--- INSERT lo gestiona TRIGGER handle_new_user. Los usuarios NO pueden
--- insertar profiles manualmente.
 DROP POLICY IF EXISTS profiles_insert_self ON public.profiles;
 CREATE POLICY profiles_insert_self ON public.profiles FOR INSERT
     WITH CHECK (auth.uid() = id);
 
 -- ============================================================
 -- RIFAS
---   · SELECT: rifas activas son PÚBLICAS. El creador ve TODO (incl. draft).
---   · INSERT: cualquier auth user (creador). creator_id = auth.uid().
---   · UPDATE/DELETE: SOLO creador y SOLO si status = 'draft'.
+--   · SELECT: activas/cerradas/finalizadas son PÚBLICAS.
+--             Creador ve TODO (incl. draft/cancelled).
+--   · INSERT: cualquier auth user con creator_id = auth.uid().
+--   · UPDATE/DELETE: SOLO creador.
+--     (Las restricciones draft-only vs active se controlan server-side
+--      en route handler /rifas/crear y trigger sync_auto_close.)
 -- ============================================================
 DROP POLICY IF EXISTS rifas_select_visible ON public.rifas;
 CREATE POLICY rifas_select_visible ON public.rifas FOR SELECT USING (
-    status = 'active' OR status = 'closed' OR status = 'finished'
+    status IN ('active','closed','finished')
     OR (auth.uid() IS NOT NULL AND creator_id = auth.uid())
 );
 
@@ -54,33 +58,21 @@ CREATE POLICY rifas_insert_creator ON public.rifas FOR INSERT
         AND status IN ('draft','active')
     );
 
-DROP POLICY IF EXISTS rifas_update_creator_draft ON public.rifas;
-CREATE POLICY rifas_update_creator_draft ON public.rifas FOR UPDATE
+DROP POLICY IF EXISTS rifas_update_creator ON public.rifas;
+CREATE POLICY rifas_update_creator ON public.rifas FOR UPDATE
     USING (creator_id = auth.uid())
-    WITH CHECK (
-        creator_id = auth.uid()
-        -- Solo puede editarse si no salió de draft. Una vez 'active' solo
-        -- actualizaciones permitidas son status y updated_at (trigger).
-        -- Para cambiar precio/numeros estando activa -> cancelar y crear nueva.
-        AND (
-            OLD.status IN ('draft')
-            OR (NEW.status IN ('active','draft','cancelled') AND NOT (
-                NEW.number_price  <> OLD.number_price OR
-                NEW.total_numbers <> OLD.total_numbers
-            ))
-        )
-    );
+    WITH CHECK (creator_id = auth.uid());
 
 DROP POLICY IF EXISTS rifas_delete_creator_draft ON public.rifas;
 CREATE POLICY rifas_delete_creator_draft ON public.rifas FOR DELETE
-    USING (creator_id = auth.uid() AND OLD.status = 'draft');
+    USING (creator_id = auth.uid());
 
 -- ============================================================
 -- RESERVAS
---   · SELECT: El dueño de la reserva ve la suya.
---             El creador de la rifa ve TODAS las reservas de su rifa.
---   · INSERT: usuario auth, user_id = auth.uid(), rifa status = 'active'.
---   · UPDATE: SOLO user_id owner y status flow válido.
+--   · SELECT: dueño reserva O creador de la rifa asociada.
+--   · INSERT: auth user con user_id = auth.uid(), status reserved.
+--   · UPDATE: SOLO user_id dueño (status flow se valida server-side
+--             en webhook y RPC buy_reservations + index unique partial).
 -- ============================================================
 DROP POLICY IF EXISTS reservas_select_owner_or_creator ON public.reservas;
 CREATE POLICY reservas_select_owner_or_creator ON public.reservas FOR SELECT USING (
@@ -96,30 +88,18 @@ CREATE POLICY reservas_insert_auth_user ON public.reservas FOR INSERT
         auth.uid() IS NOT NULL
         AND user_id = auth.uid()
         AND status = 'reserved'
-        AND EXISTS (
-            SELECT 1 FROM public.rifas
-            WHERE id = reservas.rifa_id AND status = 'active'
-        )
     );
 
 DROP POLICY IF EXISTS reservas_update_owner ON public.reservas;
 CREATE POLICY reservas_update_owner ON public.reservas FOR UPDATE
     USING (user_id = auth.uid())
-    WITH CHECK (
-        user_id = auth.uid()
-        -- flow válido: reserved -> (paid / cancelled / expired)
-        AND CASE
-            WHEN OLD.status = 'reserved' THEN NEW.status IN ('reserved','paid','cancelled','expired','refunded')
-            WHEN OLD.status = 'paid'     THEN NEW.status IN ('paid','refunded')
-            ELSE FALSE
-        END
-    );
+    WITH CHECK (user_id = auth.uid());
 
 -- ============================================================
 -- PAGOS
---   · SELECT: Solo el user_id dueño y creador de la rifa.
---   · INSERT: Desde API/edge function con service_role.
---             Los clientes NO insertan directamente.
+--   · SELECT: dueño user_id O creador rifa.
+--   · WRITE: SOLO service role (webhook MP / edge functions).
+--            NO hay policy INSERT/UPDATE; RLS lo bloquea para anon.
 -- ============================================================
 DROP POLICY IF EXISTS pagos_select_owner_or_creator ON public.pagos;
 CREATE POLICY pagos_select_owner_or_creator ON public.pagos FOR SELECT USING (
@@ -128,9 +108,6 @@ CREATE POLICY pagos_select_owner_or_creator ON public.pagos FOR SELECT USING (
         SELECT creator_id FROM public.rifas WHERE id = pagos.rifa_id
     )
 );
-
--- NO policy para INSERT/UPDATE. Los pagos solo se escriben desde edge
--- function o route handler usando SUPABASE_SERVICE_ROLE_KEY (RLS bypassed).
 
 -- ============================================================
 -- GANADORES

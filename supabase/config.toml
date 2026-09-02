@@ -1,6 +1,6 @@
 # Supabase CLI config
 # https://supabase.com/docs/guides/cli/config
-project_id = "rifascenter"
+project_id = "pscnuvibkrkqqeppmckd"
 
 [api]
 enabled = true
