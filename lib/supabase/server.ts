@@ -1,6 +1,13 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import {
+  createServerClient,
+  type CookieOptions,
+  type CookieMethodsServer,
+  type CookieOptionsWithName
+} from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { type Database } from "@/types/supabase";
+
+type CookieTuple = { name: string; value: string; options?: CookieOptionsWithName };
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -10,12 +17,12 @@ export async function createClient() {
 
   return createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      getAll() {
-        return cookieStore.getAll();
+      getAll(): ReturnType<CookieMethodsServer["getAll"]> {
+        return cookieStore.getAll() as ReturnType<CookieMethodsServer["getAll"]>;
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: CookieTuple[]): void | Promise<void> {
         try {
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value, options }: CookieTuple) =>
             cookieStore.set(name, value, options as CookieOptions)
           );
         } catch {
