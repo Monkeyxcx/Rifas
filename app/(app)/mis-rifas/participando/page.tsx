@@ -1,4 +1,15 @@
-import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/server";
+import type { PagoStatus, ReservaStatus, Rifa, RifaStatus } from "@/lib/types";
+import { formatCurrency } from "@/lib/utils";
 import {
   CalendarDays,
   CheckCircle2,
@@ -10,14 +21,66 @@ import {
   Ticket,
   Trophy
 } from "lucide-react";
-import { MOCK_RIFAS } from "@/components/rifas/MOCK_RIFAS";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils";
-import type { PagoStatus, Rifa } from "@/lib/types";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export const revalidate = 0;
+
+const RIFA_PARTICIPACION_SELECT = `
+  id, creator_id, title, slug, description, prize_name, prize_image_url,
+  prize_value, is_solidarity, cause_name, cause_description, cause_target,
+  number_price, total_numbers, available_numbers, status, ends_at, draw_date,
+  created_at, updated_at,
+  creator:profiles!rifas_creator_id_fkey(id, full_name, avatar_url, country)
+`;
+
+const RESERVAS_JOIN_SELECT = `
+  id, rifa_id, user_id, number, status, expires_at, reserved_session_key,
+  created_at, updated_at,
+  rifa:rifas!inner(${RIFA_PARTICIPACION_SELECT})
+`;
+
+type RifaParticipacionJoined = {
+  id: string;
+  creator_id: string;
+  title: string;
+  slug: string | null;
+  description: string | null;
+  prize_name: string;
+  prize_image_url: string | null;
+  prize_value: number;
+  is_solidarity: boolean;
+  cause_name: string | null;
+  cause_description: string | null;
+  cause_target: number;
+  number_price: number;
+  total_numbers: number;
+  available_numbers: number;
+  status: RifaStatus;
+  ends_at: string | null;
+  draw_date: string | null;
+  created_at: string;
+  updated_at: string;
+  creator: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+    country: string | null;
+  } | null;
+};
+
+type ReservaRow = {
+  id: string;
+  rifa_id: string;
+  user_id: string;
+  number: string;
+  status: ReservaStatus;
+  expires_at: string;
+  reserved_session_key: string | null;
+  created_at: string;
+  updated_at: string;
+  rifa: RifaParticipacionJoined;
+};
 
 type Participacion = {
   id: string;
@@ -29,54 +92,122 @@ type Participacion = {
   ticket: string;
 };
 
-function generateParticipaciones(): Participacion[] {
-  const r1 = MOCK_RIFAS[0].rifa;
-  const r2 = MOCK_RIFAS[1].rifa;
-  const r3 = MOCK_RIFAS[2].rifa;
-  const r5 = MOCK_RIFAS[4].rifa;
-  const now = Date.now();
-  return [
-    {
-      id: "PART-0001",
-      rifa: r1,
-      numbers: ["07", "13", "23", "41", "55", "72"],
-      pagoStatus: "approved",
-      pagoDate: new Date(now - 2 * 86_400_000).toISOString(),
-      monto: 6 * r1.number_price,
-      ticket: "TCK-RIF-000001-2026"
-    },
-    {
-      id: "PART-0002",
-      rifa: r2,
-      numbers: ["03", "08", "17", "29", "44", "51", "68", "89"],
-      pagoStatus: "approved",
-      pagoDate: new Date(now - 4 * 86_400_000).toISOString(),
-      monto: 8 * r2.number_price,
-      ticket: "TCK-RIF-000002-2026"
-    },
-    {
-      id: "PART-0003",
-      rifa: r3,
-      numbers: ["01", "09", "22", "66"],
-      pagoStatus: "in_process",
-      pagoDate: new Date(now - 1 * 86_400_000).toISOString(),
-      monto: 4 * r3.number_price,
-      ticket: "TCK-RIF-000003-2026"
-    },
-    {
-      id: "PART-0004",
-      rifa: r5,
-      numbers: ["14", "28", "57", "83"],
-      pagoStatus: "approved",
-      pagoDate: new Date(now - 7 * 86_400_000).toISOString(),
-      monto: 4 * r5.number_price,
-      ticket: "TCK-RIF-000004-2026"
-    }
-  ];
+function mapRifaRow(r: RifaParticipacionJoined): Rifa {
+  return {
+    id: r.id,
+    creator_id: r.creator_id,
+    title: r.title,
+    slug: r.slug,
+    description: r.description,
+    prize_name: r.prize_name,
+    prize_image_url: r.prize_image_url,
+    prize_value: r.prize_value,
+    is_solidarity: r.is_solidarity,
+    cause_name: r.cause_name,
+    cause_description: r.cause_description,
+    cause_target: r.cause_target,
+    number_price: r.number_price,
+    total_numbers: r.total_numbers,
+    available_numbers: r.available_numbers,
+    status: r.status as RifaStatus,
+    ends_at: r.ends_at,
+    draw_date: r.draw_date,
+    draw_instructions: null,
+    banner_ad_config: null,
+    metadata: null,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    creator: r.creator
+        ? {
+            id: r.creator.id,
+            full_name: r.creator.full_name ?? null,
+            avatar_url: r.creator.avatar_url ?? null,
+            country: r.creator.country ?? null
+          }
+        : null
+  };
 }
 
-export default function MisRifasParticipandoPage() {
-  const participaciones = generateParticipaciones();
+function mapReservaToPagoStatus(res: ReservaStatus): PagoStatus {
+  switch (res) {
+    case "paid":
+      return "approved";
+    case "reserved":
+      return "in_process";
+    case "cancelled":
+      return "cancelled";
+    case "refunded":
+      return "refunded";
+    case "expired":
+      return "rejected";
+    default:
+      return "pending";
+  }
+}
+
+async function loadParticipaciones(): Promise<Participacion[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: uErr
+  } = await supabase.auth.getUser();
+  if (uErr || !user) redirect("/auth");
+
+  const { data, error } = await supabase
+    .from("reservas")
+    .select(RESERVAS_JOIN_SELECT)
+    .eq("user_id", user.id)
+    .in("status", ["reserved", "paid", "cancelled", "refunded", "expired"])
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[mis-rifas/participando] DB error", error);
+    return [];
+  }
+  const rows = (data ?? []) as unknown as ReservaRow[];
+
+  const grouped = new Map<string, Participacion>();
+  for (const row of rows) {
+    const rifaId = row.rifa_id;
+    const existing = grouped.get(rifaId);
+    const statusNow = mapReservaToPagoStatus(row.status);
+    const priority: Record<PagoStatus, number> = {
+      approved: 5,
+      in_process: 4,
+      pending: 3,
+      refunded: 2,
+      cancelled: 1,
+      rejected: 0
+    };
+    if (!existing) {
+      grouped.set(rifaId, {
+        id: `PART-${row.id.slice(0, 8).toUpperCase()}`,
+        rifa: mapRifaRow(row.rifa),
+        numbers: [row.number],
+        pagoStatus: statusNow,
+        pagoDate: row.created_at,
+        monto: row.rifa.number_price,
+        ticket: `TCK-RIF-${rifaId.slice(0, 6).toUpperCase()}-${new Date(row.created_at).getFullYear()}`
+      });
+    } else {
+      existing.numbers.push(row.number);
+      existing.monto += row.rifa.number_price;
+      if (priority[statusNow] > priority[existing.pagoStatus]) {
+        existing.pagoStatus = statusNow;
+      }
+      if (new Date(row.created_at) > new Date(existing.pagoDate)) {
+        existing.pagoDate = row.created_at;
+      }
+    }
+  }
+
+  return Array.from(grouped.values()).sort(
+    (a, b) => new Date(b.pagoDate).getTime() - new Date(a.pagoDate).getTime()
+  );
+}
+
+export default async function MisRifasParticipandoPage() {
+  const participaciones = await loadParticipaciones();
   const totalTickets = participaciones.length;
   const pagosConfirmados = participaciones.filter(
     (p) => p.pagoStatus === "approved"
@@ -92,7 +223,10 @@ export default function MisRifasParticipandoPage() {
     switch (s) {
       case "approved":
         return (
-          <Badge variant="paid" className="!bg-emerald-100 !text-emerald-700 !border !border-emerald-200">
+          <Badge
+            variant="paid"
+            className="!bg-emerald-100 !text-emerald-700 !border !border-emerald-200"
+          >
             <CheckCircle2 className="mr-1 h-3 w-3" />
             Pago confirmado
           </Badge>
@@ -100,7 +234,10 @@ export default function MisRifasParticipandoPage() {
       case "pending":
       case "in_process":
         return (
-          <Badge variant="pending" className="!bg-amber-100 !text-amber-700 !border !border-amber-200">
+          <Badge
+            variant="pending"
+            className="!bg-amber-100 !text-amber-700 !border !border-amber-200"
+          >
             <Clock3 className="mr-1 h-3 w-3" />
             Procesando pago
           </Badge>
@@ -215,7 +352,9 @@ export default function MisRifasParticipandoPage() {
                 {formatCurrency(totalInvertido)}
               </p>
               <p className="mt-1 text-xs font-semibold text-slate-500">
-                Promedio {formatCurrency(Math.round(totalInvertido / totalTickets))} por rifa
+                {totalTickets > 0
+                  ? `Promedio ${formatCurrency(Math.round(totalInvertido / totalTickets))} por rifa`
+                  : "Participa para ver estadísticas"}
               </p>
             </CardContent>
           </Card>

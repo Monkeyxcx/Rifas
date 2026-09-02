@@ -1,10 +1,10 @@
-import { MOCK_RIFAS } from "@/components/rifas/MOCK_RIFAS";
 import { RifaCard } from "@/components/rifas/RifaCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { createClient } from "@/lib/supabase/server";
 import type { Rifa, RifaStatus } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -20,19 +20,114 @@ import {
   UsersRound
 } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export const revalidate = 0;
 
-function pickMisCreadas(): Array<{ rifa: Rifa; status: RifaStatus }> {
-  const raw = MOCK_RIFAS.slice(0, 3).map((r, idx) => ({
-    rifa: r.rifa,
-    status: (idx === 2 ? "closed" : r.rifa.status) as RifaStatus
+const CREATOR_PROFILES_FRAGMENT = `
+  id, full_name, avatar_url, country
+`;
+
+const RIFAS_SELECT_FRAGMENT = `
+  id, creator_id, title, slug, description, prize_name, prize_image_url,
+  prize_value, is_solidarity, cause_name, cause_description, cause_target,
+  number_price, total_numbers, available_numbers, status, ends_at, draw_date,
+  draw_instructions, banner_ad_config, metadata, created_at, updated_at,
+  creator:profiles!rifas_creator_id_fkey(${CREATOR_PROFILES_FRAGMENT})
+`;
+
+type CreadasRow = {
+  id: string;
+  creator_id: string;
+  title: string;
+  slug: string | null;
+  description: string | null;
+  prize_name: string;
+  prize_image_url: string | null;
+  prize_value: number;
+  is_solidarity: boolean;
+  cause_name: string | null;
+  cause_description: string | null;
+  cause_target: number;
+  number_price: number;
+  total_numbers: number;
+  available_numbers: number;
+  status: RifaStatus;
+  ends_at: string | null;
+  draw_date: string | null;
+  draw_instructions: string | null;
+  banner_ad_config: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  creator: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+    country: string | null;
+  } | null;
+};
+
+async function loadMisCreadas(): Promise<Array<{ rifa: Rifa; status: RifaStatus }>> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userErr
+  } = await supabase.auth.getUser();
+  if (userErr || !user) redirect("/auth");
+
+  const { data, error } = await supabase
+    .from("rifas")
+    .select(RIFAS_SELECT_FRAGMENT)
+    .eq("creator_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[mis-rifas/creadas] DB error", error);
+    return [];
+  }
+  const rows = (data ?? []) as unknown as CreadasRow[];
+
+  return rows.map((r) => ({
+    rifa: {
+      id: r.id,
+      creator_id: r.creator_id,
+      title: r.title,
+      slug: r.slug,
+      description: r.description,
+      prize_name: r.prize_name,
+      prize_image_url: r.prize_image_url,
+      prize_value: r.prize_value,
+      is_solidarity: r.is_solidarity,
+      cause_name: r.cause_name,
+      cause_description: r.cause_description,
+      cause_target: r.cause_target,
+      number_price: r.number_price,
+      total_numbers: r.total_numbers,
+      available_numbers: r.available_numbers,
+      status: r.status as RifaStatus,
+      ends_at: r.ends_at,
+      draw_date: r.draw_date,
+      draw_instructions: r.draw_instructions,
+      banner_ad_config: r.banner_ad_config,
+      metadata: r.metadata,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      creator: r.creator
+        ? {
+            id: r.creator.id,
+            full_name: r.creator.full_name ?? null,
+            avatar_url: r.creator.avatar_url ?? null,
+            country: r.creator.country ?? null
+          }
+        : null
+    },
+    status: (r.status ?? "active") as RifaStatus
   }));
-  return raw;
 }
 
-export default function MisRifasCreadasPage() {
-  const creadas = pickMisCreadas();
+export default async function MisRifasCreadasPage() {
+  const creadas = await loadMisCreadas();
   const totalRecaudado = creadas.reduce(
     (acc, c) =>
       acc +
@@ -45,12 +140,21 @@ export default function MisRifasCreadasPage() {
   );
   const rifasActivas = creadas.filter((c) => c.status === "active").length;
   const country = creadas[0]?.rifa.creator?.country ?? "Colombia";
+  const totalLimit = creadas.reduce((acc, c) => acc + c.rifa.total_numbers, 0);
 
   const tabs: Array<{ v: string; label: string; count: number }> = [
     { v: "todas", label: "Todas", count: creadas.length },
     { v: "activas", label: "Activas", count: rifasActivas },
-    { v: "cerradas", label: "Cerradas", count: creadas.filter((c) => c.status === "closed").length },
-    { v: "agotadas", label: "Agotadas", count: creadas.filter((c) => c.rifa.available_numbers === 0).length }
+    {
+      v: "cerradas",
+      label: "Cerradas",
+      count: creadas.filter((c) => c.status === "closed").length
+    },
+    {
+      v: "agotadas",
+      label: "Agotadas",
+      count: creadas.filter((c) => c.rifa.available_numbers === 0).length
+    }
   ];
 
   return (
@@ -121,7 +225,7 @@ export default function MisRifasCreadasPage() {
                 Números vendidos
               </CardTitle>
               <Badge variant="new" className="font-numbers tabular-nums">
-                +18 esta semana
+                +{totalVendidos} totales
               </Badge>
             </CardHeader>
             <CardContent>
@@ -129,11 +233,9 @@ export default function MisRifasCreadasPage() {
                 {totalVendidos.toLocaleString("es-CO")}
               </p>
               <p className="mt-1 text-xs font-semibold text-slate-500">
-                {Math.round(
-                  (totalVendidos /
-                    creadas.reduce((acc, c) => acc + c.rifa.total_numbers, 0)) *
-                    100
-                )}
+                {totalLimit > 0
+                  ? Math.round((totalVendidos / totalLimit) * 100)
+                  : 0}
                 % de límite total vendido
               </p>
             </CardContent>
@@ -145,7 +247,9 @@ export default function MisRifasCreadasPage() {
                 Rifas activas
               </CardTitle>
               <Badge variant="solidarity" className="font-numbers tabular-nums">
-                Cierre prom 12d
+                {creadas.length > 0
+                  ? `${Math.round((rifasActivas / creadas.length) * 100)}%`
+                  : "0%"} activas
               </Badge>
             </CardHeader>
             <CardContent>
@@ -240,17 +344,23 @@ export default function MisRifasCreadasPage() {
                     size="sm"
                     variant="outline"
                     className="!bg-white !h-9 !border-slate-200 !text-slate-700 shadow"
+                    asChild
                   >
-                    <Eye className="mr-1 h-3.5 w-3.5" />
-                    Preview
+                    <Link href={`/rifas/${rifa.id}`}>
+                      <Eye className="mr-1 h-3.5 w-3.5" />
+                      Preview
+                    </Link>
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     className="!bg-white !h-9 !border-slate-200 !text-slate-700 shadow"
+                    asChild
                   >
-                    <Settings2 className="mr-1 h-3.5 w-3.5" />
-                    Editar
+                    <Link href={`/rifas/crear?editar=${rifa.id}`}>
+                      <Settings2 className="mr-1 h-3.5 w-3.5" />
+                      Editar
+                    </Link>
                   </Button>
                   <Button
                     size="sm"
