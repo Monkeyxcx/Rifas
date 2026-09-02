@@ -13,9 +13,9 @@
 --    Los puedes ver en Supabase Dashboard → Authentication → Users → Copy ID.
 DO $$
 DECLARE
-    v_creador_id    UUID := '00000000-0000-0000-0000-000000000000';
-    v_usuario1_id   UUID := '00000000-0000-0000-0000-000000000000';
-    v_usuario2_id   UUID := '00000000-0000-0000-0000-000000000000';
+    v_creador_id    UUID := '5e83b484-0a6a-425a-884e-b2018095c943';
+    v_usuario1_id   UUID := '2d7e7d92-b164-46a7-9038-bf5c0cb44f50';
+    v_usuario2_id   UUID := '144e10cc-b712-4dfb-a433-c2b156270ab3';
     v_count INT;
 BEGIN
     -- ==============================================================
@@ -96,14 +96,25 @@ BEGIN
 
     -- ==============================================================
     -- RESERVAS pagadas (5 demo)
+    -- NOTA: ON CONFLICT no funciona con indexes parciales (anti doble venta).
+    -- Usamos CTE + WHERE NOT EXISTS manual.
     -- ==============================================================
-    INSERT INTO public.reservas (rifa_id, user_id, number, status, expires_at) VALUES
-      ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', v_usuario1_id, '05', 'paid', NOW() + INTERVAL '1 year'),
-      ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', v_usuario1_id, '12', 'paid', NOW() + INTERVAL '1 year'),
-      ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', v_usuario2_id, '07', 'paid', NOW() + INTERVAL '1 year'),
-      ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', v_usuario2_id, '33', 'paid', NOW() + INTERVAL '1 year'),
-      ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', v_usuario1_id, '99', 'paid', NOW() + INTERVAL '1 year')
-    ON CONFLICT DO NOTHING;
+    WITH demo_reservas(rifa_id, user_id, number, status, expires_at) AS (VALUES
+      ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid, v_usuario1_id, '05', 'paid', NOW() + INTERVAL '1 year'),
+      ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid, v_usuario1_id, '12', 'paid', NOW() + INTERVAL '1 year'),
+      ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid, v_usuario2_id, '07', 'paid', NOW() + INTERVAL '1 year'),
+      ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid, v_usuario2_id, '33', 'paid', NOW() + INTERVAL '1 year'),
+      ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid, v_usuario1_id, '99', 'paid', NOW() + INTERVAL '1 year')
+    )
+    INSERT INTO public.reservas (rifa_id, user_id, number, status, expires_at)
+    SELECT d.rifa_id, d.user_id, d.number, d.status, d.expires_at
+    FROM demo_reservas d
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.reservas r
+      WHERE r.rifa_id = d.rifa_id
+        AND r.number = d.number
+        AND r.status IN ('reserved','paid')
+    );
 
     GET DIAGNOSTICS v_count = ROW_COUNT;
     RAISE NOTICE '✅ Reservas insertadas: %', v_count;
