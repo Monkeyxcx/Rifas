@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createPreference as mpCreatePreference, isTesting } from "@/lib/mercadopago";
+import { createClient } from "@/lib/supabase/server";
 import { MOCK_RIFAS } from "@/components/rifas/MOCK_RIFAS";
 import type { MercadoPagoItem } from "@/lib/mercadopago";
+import type { Rifa } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -73,7 +75,61 @@ export async function POST(req: Request) {
     );
   }
 
-  const rifaInfo = MOCK_RIFAS.find((r) => r.rifa.id === rifaId)?.rifa;
+  let rifaInfo: Rifa | null | undefined = MOCK_RIFAS.find((r) => r.rifa.id === rifaId)?.rifa;
+
+  if (!rifaInfo && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    try {
+      const supabase = await createClient();
+      const { data, error } = await supabase
+        .from("rifas")
+        .select(`
+          id, creator_id, title, prize_name, number_price, total_numbers, available_numbers,
+          status, created_at, draw_date, description, cause_name, is_solidarity, prize_value,
+          ends_at, creator:profiles!rifas_creator_id_fkey(id, full_name, avatar_url, country)
+        `)
+        .eq("id", rifaId)
+        .single();
+      if (!error && data) {
+        const row = data as Record<string, unknown>;
+        const creator = row.creator as Array<Record<string, unknown>> | Record<string, unknown> | null;
+        const creatorObj = Array.isArray(creator) ? creator[0] ?? null : creator ?? null;
+        rifaInfo = {
+          id: String(row.id),
+          creator_id: String(row.creator_id),
+          title: String(row.title),
+          prize_name: String(row.prize_name),
+          prize_value: Number(row.prize_value ?? 0),
+          number_price: Number(row.number_price),
+          total_numbers: Number(row.total_numbers),
+          available_numbers: Number(row.available_numbers),
+          status: (String(row.status ?? "active") as Rifa["status"]),
+          created_at: String(row.created_at ?? new Date().toISOString()),
+          draw_date: row.draw_date ? String(row.draw_date) : null,
+          ends_at: row.ends_at ? String(row.ends_at) : null,
+          description: String(row.description ?? row.title),
+          is_solidarity: row.is_solidarity === true,
+          cause_name: row.cause_name ? String(row.cause_name) : null,
+          creator: creatorObj
+            ? {
+                id: String(creatorObj.id ?? ""),
+                full_name: creatorObj.full_name !== null && creatorObj.full_name !== undefined
+                  ? String(creatorObj.full_name)
+                  : null,
+                avatar_url: creatorObj.avatar_url !== null && creatorObj.avatar_url !== undefined
+                  ? String(creatorObj.avatar_url)
+                  : null,
+                country: creatorObj.country !== null && creatorObj.country !== undefined
+                  ? String(creatorObj.country)
+                  : null
+              }
+            : null
+        } as Rifa;
+      }
+    } catch (err) {
+      console.warn("[create-preference] fallback supabase rifa load failed", err);
+    }
+  }
+
   if (!rifaInfo) {
     return NextResponse.json(
       { ok: false, error: "Rifa no encontrada." },
