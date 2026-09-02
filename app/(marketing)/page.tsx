@@ -273,7 +273,7 @@ export default function MarketingHomePage() {
                 asChild
                 size="lg"
                 variant="outline"
-                className="border-2 border-white/80 text-white hover:bg-white/10 hover:text-white"
+                className="!bg-transparent border-2 border-white/80 text-white hover:bg-white/10 hover:text-white"
               >
                 <Link href="/rifas/crear">Crear rifa solidaria</Link>
               </Button>
