@@ -31,11 +31,13 @@ export type PagoStatus =
 
 export interface Perfil {
   id: ID;
+  display_name: string | null;
   full_name: string | null;
   avatar_url: string | null;
   phone: string | null;
   country: string | null;
   bio: string | null;
+  wallet_balance: number;
   is_verified: boolean;
   created_at: string;
   updated_at: string;

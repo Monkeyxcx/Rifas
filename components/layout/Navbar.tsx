@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { Ticket, Search, Plus, User, Heart } from "lucide-react";
+import { Ticket, Search, Plus, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AuthMenu } from "@/components/layout/AuthMenu";
 
 const NAV_LINKS = [
   { href: "/rifas", label: "Rifas activas", icon: Ticket },
   { href: "/rifas?solidarias=true", label: "Solidarias", icon: Heart },
-  { href: "/buscar", label: "Buscar", icon: Search }
+  { href: "/rifas", label: "Buscar", icon: Search }
 ];
 
 export function Navbar() {
@@ -29,7 +30,7 @@ export function Navbar() {
         <nav className="hidden md:flex items-center gap-1">
           {NAV_LINKS.map(({ href, label, icon: Icon }) => (
             <Link
-              key={href}
+              key={href + label}
               href={href}
               className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-brand-rose transition-colors"
             >
@@ -40,12 +41,7 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
-            <Link href="/ingresar">
-              <User className="h-4 w-4" />
-              Ingresar
-            </Link>
-          </Button>
+          <AuthMenu />
           <Button asChild variant="default" size="sm">
             <Link href="/rifas/crear">
               <Plus className="h-4 w-4" />

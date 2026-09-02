@@ -21,6 +21,10 @@ export function formatCurrencyGeneric(value: number): string {
   }).format(value);
 }
 
+export function formatCurrency(value: number, currency = "COP"): string {
+  return formatCurrencyCOP(value, currency);
+}
+
 export function padRaffleNumber(n: number | string): string {
   return String(n).padStart(2, "0");
 }
