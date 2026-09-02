@@ -68,7 +68,7 @@ export async function createPreference(input: CreatePreferenceInput) {
       payer: input.payer,
       external_reference: input.externalReference,
       metadata: input.metadata,
-      back_urls: input.backUrls || {
+      backUrls: input.backUrls || {
         success: `${baseUrl}/checkout/success`,
         pending: `${baseUrl}/checkout/pending`,
         failure: `${baseUrl}/checkout/failure`
@@ -76,7 +76,7 @@ export async function createPreference(input: CreatePreferenceInput) {
       notification_url:
         input.notificationUrl ||
         `${baseUrl}/api/mercadopago/webhook?src=mp`,
-      auto_return: "approved",
+      autoReturn: "approved",
       binary_mode: false,
       expires: input.expires ?? true,
       expiration_date_from: input.expirationDateFrom,
@@ -85,7 +85,7 @@ export async function createPreference(input: CreatePreferenceInput) {
         new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       statement_descriptor:
         process.env.NEXT_PUBLIC_APP_NAME || "RifasCenter"
-    }
+    } as unknown as Parameters<typeof mpPreference.create>[0]["body"]
   });
 }
 
