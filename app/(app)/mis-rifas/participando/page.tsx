@@ -1,8 +1,415 @@
+import Link from "next/link";
+import {
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  FileCheck2,
+  Gift,
+  PartyPopper,
+  Ticket,
+  Trophy
+} from "lucide-react";
+import { MOCK_RIFAS } from "@/components/rifas/MOCK_RIFAS";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/utils";
+import type { PagoStatus, Rifa } from "@/lib/types";
+
+export const revalidate = 0;
+
+type Participacion = {
+  id: string;
+  rifa: Rifa;
+  numbers: string[];
+  pagoStatus: PagoStatus;
+  pagoDate: string;
+  monto: number;
+  ticket: string;
+};
+
+function generateParticipaciones(): Participacion[] {
+  const r1 = MOCK_RIFAS[0].rifa;
+  const r2 = MOCK_RIFAS[1].rifa;
+  const r3 = MOCK_RIFAS[2].rifa;
+  const r5 = MOCK_RIFAS[4].rifa;
+  const now = Date.now();
+  return [
+    {
+      id: "PART-0001",
+      rifa: r1,
+      numbers: ["07", "13", "23", "41", "55", "72"],
+      pagoStatus: "approved",
+      pagoDate: new Date(now - 2 * 86_400_000).toISOString(),
+      monto: 6 * r1.number_price,
+      ticket: "TCK-RIF-000001-2026"
+    },
+    {
+      id: "PART-0002",
+      rifa: r2,
+      numbers: ["03", "08", "17", "29", "44", "51", "68", "89"],
+      pagoStatus: "approved",
+      pagoDate: new Date(now - 4 * 86_400_000).toISOString(),
+      monto: 8 * r2.number_price,
+      ticket: "TCK-RIF-000002-2026"
+    },
+    {
+      id: "PART-0003",
+      rifa: r3,
+      numbers: ["01", "09", "22", "66"],
+      pagoStatus: "in_process",
+      pagoDate: new Date(now - 1 * 86_400_000).toISOString(),
+      monto: 4 * r3.number_price,
+      ticket: "TCK-RIF-000003-2026"
+    },
+    {
+      id: "PART-0004",
+      rifa: r5,
+      numbers: ["14", "28", "57", "83"],
+      pagoStatus: "approved",
+      pagoDate: new Date(now - 7 * 86_400_000).toISOString(),
+      monto: 4 * r5.number_price,
+      ticket: "TCK-RIF-000004-2026"
+    }
+  ];
+}
+
 export default function MisRifasParticipandoPage() {
+  const participaciones = generateParticipaciones();
+  const totalTickets = participaciones.length;
+  const pagosConfirmados = participaciones.filter(
+    (p) => p.pagoStatus === "approved"
+  ).length;
+  const numerosTotales = participaciones.reduce(
+    (acc, p) => acc + p.numbers.length,
+    0
+  );
+  const totalInvertido = participaciones.reduce((acc, p) => acc + p.monto, 0);
+  const ganadas = 0;
+
+  const statusBadge = (s: PagoStatus) => {
+    switch (s) {
+      case "approved":
+        return (
+          <Badge variant="paid" className="!bg-emerald-100 !text-emerald-700 !border !border-emerald-200">
+            <CheckCircle2 className="mr-1 h-3 w-3" />
+            Pago confirmado
+          </Badge>
+        );
+      case "pending":
+      case "in_process":
+        return (
+          <Badge variant="pending" className="!bg-amber-100 !text-amber-700 !border !border-amber-200">
+            <Clock3 className="mr-1 h-3 w-3" />
+            Procesando pago
+          </Badge>
+        );
+      case "rejected":
+        return (
+          <Badge variant="destructive">
+            <CreditCard className="mr-1 h-3 w-3" />
+            Pago rechazado
+          </Badge>
+        );
+      case "refunded":
+        return (
+          <Badge variant="secondary">
+            <FileCheck2 className="mr-1 h-3 w-3" />
+            Reembolsado
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="secondary">
+            <Clock3 className="mr-1 h-3 w-3" />
+            {s}
+          </Badge>
+        );
+    }
+  };
+
   return (
-    <div className="container max-w-content py-10">
-      <h2>Rifas en que participo</h2>
-      <p className="text-slate-500 mt-2">Historial participante — en construcción.</p>
-    </div>
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+      <div className="container mx-auto max-w-7xl px-4 py-10 lg:py-12">
+        {/* HEADER gradient cyan/rose */}
+        <div className="relative mb-10 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-cyan via-sky-500 to-brand-rose p-7 lg:p-10 text-white shadow-xl">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-20"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.9) 1px, transparent 0)",
+              backgroundSize: "20px 20px"
+            }}
+          />
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <Badge className="!bg-white !bg-opacity-95 !text-brand-cyan !border-0 mb-3 shadow">
+                <Ticket className="mr-1.5 h-3 w-3" />
+                Mis participaciones
+              </Badge>
+              <h1 className="font-display text-3xl font-black tracking-tight lg:text-4xl">
+                Mis rifas · Historial de participaciones
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-white/85 lg:text-base">
+                Todos tus números, pagos y tickets oficiales en un solo lugar. Si uno de tus números sale sorteado
+                te contactamos en 24 horas. ¡Mucha suerte! 🍀
+              </p>
+            </div>
+            <Button
+              asChild
+              size="lg"
+              className="group h-12 !bg-white !text-brand-cyan hover:!bg-white/90 shadow-cta shadow-black/10"
+            >
+              <Link href="/rifas" className="flex items-center gap-2 font-black">
+                <Gift className="h-5 w-5 transition group-hover:scale-110" strokeWidth={2.4} />
+                Explorar más rifas
+              </Link>
+            </Button>
+          </div>
+        </div>
+
+        {/* STATS 4 cards */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                <Ticket className="h-4 w-4 text-brand-cyan" />
+                Tickets activos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="font-numbers text-3xl font-black tabular-nums tracking-tight text-brand-cyan">
+                {totalTickets}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                {numerosTotales} números totales jugados
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                Pagos confirmados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="font-numbers text-3xl font-black tabular-nums tracking-tight text-emerald-600">
+                {pagosConfirmados}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                {totalTickets - pagosConfirmados} en proceso
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-brand-violet" />
+                Invertido total
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="font-numbers text-3xl font-black tabular-nums tracking-tight text-brand-violet">
+                {formatCurrency(totalInvertido)}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Promedio {formatCurrency(Math.round(totalInvertido / totalTickets))} por rifa
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                <PartyPopper className="h-4 w-4 text-brand-gold" />
+                Premios ganados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="font-numbers text-3xl font-black tabular-nums tracking-tight text-amber-500">
+                {ganadas}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Sigue participando · ¡la suerte te espera!
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* LISTADO PARTICIPACIONES */}
+        <div className="space-y-4">
+          {participaciones.length === 0 ? (
+            <Card className="border-2 border-dashed border-slate-300 bg-white py-20 text-center">
+              <CardContent className="mx-auto max-w-md">
+                <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand-cyan to-brand-rose text-white shadow-cta">
+                  <Trophy className="h-8 w-8" strokeWidth={2.2} />
+                </div>
+                <h3 className="font-display text-xl font-black text-slate-900">
+                  ¡Aún no has participado en ninguna rifa!
+                </h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  Encuentra premios increíbles o apoyar causas solidarias — elige tus
+                  números favoritos y juega. 100% seguro con Mercado Pago.
+                </p>
+                <Button asChild size="lg" className="mt-5 h-12 font-black w-full md:w-auto">
+                  <Link href="/rifas">
+                    <Gift className="mr-1.5 h-5 w-5" />
+                    Explorar rifas activas
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            participaciones.map((p) => {
+              const country = p.rifa.creator?.country ?? "Colombia";
+              const drawDate = p.rifa.draw_date ? new Date(p.rifa.draw_date) : null;
+              return (
+                <Card
+                  key={p.id}
+                  className="overflow-hidden border-slate-200 shadow-sm transition hover:border-brand-cyan/40 hover:shadow-md"
+                >
+                  <div className="grid gap-0 md:grid-cols-[1fr_auto]">
+                    <CardHeader className="pb-4 md:pb-6 flex flex-col gap-3 md:flex-row md:items-start">
+                      <div
+                        className={
+                          p.rifa.is_solidarity
+                            ? "relative flex h-28 w-full md:h-full md:w-40 shrink-0 rounded-2xl overflow-hidden bg-gradient-to-br from-brand-cyan via-emerald-400 to-brand-rose text-white"
+                            : "relative flex h-28 w-full md:h-full md:w-40 shrink-0 rounded-2xl overflow-hidden bg-gradient-to-br from-brand-rose via-brand-violet to-brand-cyan text-white"
+                        }
+                      >
+                        <div
+                          className="pointer-events-none absolute inset-0 opacity-25"
+                          style={{
+                            backgroundImage:
+                              "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.9) 1px, transparent 0)",
+                            backgroundSize: "16px 16px"
+                          }}
+                        />
+                        <div className="relative z-10 m-auto text-center">
+                          <div className="mx-auto mb-1 grid h-10 w-10 place-items-center rounded-xl bg-white/15 backdrop-blur">
+                            {p.rifa.is_solidarity ? (
+                              <Gift className="h-5 w-5" />
+                            ) : (
+                              <Trophy className="h-5 w-5" />
+                            )}
+                          </div>
+                          <p className="font-numbers text-[10px] font-black uppercase tracking-wider opacity-90">
+                            {country}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                          {statusBadge(p.pagoStatus)}
+                          <Badge variant="secondary" className="font-numbers tabular-nums">
+                            {p.ticket}
+                          </Badge>
+                          {p.rifa.is_solidarity && (
+                            <Badge variant="solidarity">
+                              <Gift className="mr-1 h-3 w-3" /> Solidaria
+                            </Badge>
+                          )}
+                        </div>
+                        <CardTitle className="font-display text-lg leading-snug line-clamp-2">
+                          <Link
+                            href={`/rifas/${p.rifa.id}`}
+                            className="transition hover:text-brand-rose"
+                          >
+                            {p.rifa.title}
+                          </Link>
+                        </CardTitle>
+                        <CardDescription className="mt-1 text-xs text-slate-500">
+                          Organiza{" "}
+                          <span className="font-semibold text-slate-600">
+                            {p.rifa.creator?.full_name ?? "Anónimo"}
+                          </span>{" "}
+                          · Premio{" "}
+                          <span className="font-semibold text-slate-800 font-numbers tabular-nums">
+                            {formatCurrency(p.rifa.prize_value)}
+                          </span>{" "}
+                          · {p.numbers.length} número{p.numbers.length === 1 ? "" : "s"} jugados
+                        </CardDescription>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          {p.numbers.map((n) => (
+                            <div
+                              key={n}
+                              className="grid h-9 w-11 place-items-center rounded-lg border-2 border-brand-cyan/50 bg-gradient-to-br from-brand-cyan/15 via-sky-50 to-brand-rose/10 font-numbers text-sm font-black text-slate-800 tabular-nums shadow-sm"
+                            >
+                              {n}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="border-t md:border-t-0 md:border-l border-slate-100 bg-slate-50/60 p-4 md:p-6 md:w-64 shrink-0 flex flex-col justify-between gap-4">
+                      <div className="space-y-2.5 text-xs font-semibold text-slate-500">
+                        <div className="flex justify-between">
+                          <span className="flex items-center gap-1">
+                            <CreditCard className="h-3.5 w-3.5 text-brand-violet" />
+                            Monto pagado
+                          </span>
+                          <span className="font-numbers tabular-nums text-slate-900">
+                            {formatCurrency(p.monto)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="flex items-center gap-1">
+                            <CalendarDays className="h-3.5 w-3.5 text-brand-rose" />
+                            Fecha compra
+                          </span>
+                          <span className="font-numbers tabular-nums text-slate-700">
+                            {new Date(p.pagoDate).toLocaleDateString("es-CO", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric"
+                            })}
+                          </span>
+                        </div>
+                        {drawDate && (
+                          <div className="flex justify-between">
+                            <span className="flex items-center gap-1">
+                              <Trophy className="h-3.5 w-3.5 text-brand-gold" />
+                              Día sorteo
+                            </span>
+                            <span className="font-numbers tabular-nums text-slate-700">
+                              {drawDate.toLocaleDateString("es-CO", {
+                                day: "2-digit",
+                                month: "short"
+                              })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2 pt-1">
+                        <Button
+                          asChild
+                          className="w-full !h-10 !bg-gradient-to-r from-brand-cyan to-brand-rose !text-white font-bold shadow-cta shadow-cyan-500/20"
+                        >
+                          <Link href={`/rifas/${p.rifa.id}`}>
+                            <FileCheck2 className="mr-1.5 h-4 w-4" />
+                            Ver ticket oficial
+                          </Link>
+                        </Button>
+                        <Button
+                          asChild
+                          variant="outline"
+                          className="w-full !h-10 !border-slate-300 !text-slate-700 font-bold"
+                        >
+                          <Link href="/rifas">
+                            <Gift className="mr-1.5 h-4 w-4" />
+                            Seguir participando
+                          </Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </div>
+                </Card>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </main>
   );
 }
