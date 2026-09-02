@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   Search,
@@ -326,10 +327,10 @@ export default function RifasListPage() {
                   asChild
                   variant="gradient"
                 >
-                  <a href="/rifas/crear">
+                  <Link href="/rifas/crear">
                     <Ticket className="h-4 w-4" />
                     Crear la mía
-                  </a>
+                  </Link>
                 </Button>
               </div>
             </div>

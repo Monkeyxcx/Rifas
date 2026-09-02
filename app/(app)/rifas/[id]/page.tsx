@@ -15,7 +15,8 @@ import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 // Simulate params sync (Next 15 params is a Promise — unwrap with React.use in future, safe for now)
 function unwrapParamsSync(p: Promise<{ id: string }> | { id: string }): { id: string } {
-  if (p && typeof (p as Promise<any>).then === "function") {
+  type P = Promise<{ id: string }>;
+  if (p && typeof (p as P).then === "function") {
     return { id: "00000000-0000-0000-0000-000000000001" };
   }
   return p as { id: string };

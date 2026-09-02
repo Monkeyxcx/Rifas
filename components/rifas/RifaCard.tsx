@@ -64,6 +64,7 @@ export function RifaCard({ rifa, stats, className }: RifaCardProps) {
       {/* ======= Imagen premio ======= */}
       <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100">
         {prize_image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={prize_image_url}
             alt={prize_name}

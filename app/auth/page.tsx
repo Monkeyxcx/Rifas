@@ -146,7 +146,7 @@ function AuthInner() {
                   >
                     {/* Supabase Auth UI — componente de confianza del SDK oficial */}
                     <Auth
-                      supabaseClient={supabase as any}
+                      supabaseClient={supabase as never}
                       appearance={({
                         theme: "default",
                         variables: {
@@ -209,7 +209,7 @@ function AuthInner() {
                           message: "rounded-xl p-3 text-sm",
                           container: "w-full"
                         }
-                      } as any)}
+                      } as never)}
                       providers={[]}
                       redirectTo={`${origin}/api/auth/callback?next=${encodeURIComponent(redirectTo)}`}
                       onlyThirdPartyProviders={false}
@@ -224,7 +224,7 @@ function AuthInner() {
                             email_input_placeholder: "tu@correo.com",
                             password_input_placeholder: "••••••••",
                             button_label: "Crear cuenta",
-                            button_loading_label: "Creando cuenta...",
+                            loading_button_label: "Creando cuenta...",
                             social_provider_text: "Continuar con {{provider}}",
                             link_text: "¿No tienes cuenta? Regístrate",
                             confirmation_text:
@@ -236,25 +236,25 @@ function AuthInner() {
                             email_input_placeholder: "tu@correo.com",
                             password_input_placeholder: "••••••••",
                             button_label: "Entrar",
-                            button_loading_label: "Entrando...",
+                            loading_button_label: "Entrando...",
                             social_provider_text: "Entrar con {{provider}}",
                             link_text: "¿Ya tienes cuenta? Inicia sesión",
                             forgot_password_link: "¿Olvidaste tu contraseña?"
                           },
                           magic_link: {
                             button_label: "Enviar enlace mágico",
-                            button_loading_label: "Enviando..."
+                            loading_button_label: "Enviando..."
                           },
                           forgotten_password: {
                             button_label: "Enviar instrucciones",
-                            button_loading_label: "Enviando..."
+                            loading_button_label: "Enviando..."
                           },
                           update_password: {
                             button_label: "Actualizar contraseña",
-                            button_loading_label: "Actualizando..."
+                            loading_button_label: "Actualizando..."
                           }
                         }
-                      } as any}
+                      } as never}
                     />
                   </div>
                 )}
