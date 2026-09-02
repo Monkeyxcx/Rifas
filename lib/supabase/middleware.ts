@@ -48,7 +48,7 @@ export async function updateSession(request: NextRequest) {
 
   if (!user && isPrivateRoute) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/auth";
     url.searchParams.set("redirectTo", request.nextUrl.pathname);
     return NextResponse.redirect(url);
   }
