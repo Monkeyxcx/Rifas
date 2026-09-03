@@ -1,6 +1,15 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { MapPin, Share2, Gift, Heart, Award, Users, Calendar, ShieldCheck } from "lucide-react";
+import {
+  MapPin,
+  Share2,
+  Gift,
+  Heart,
+  Award,
+  Users,
+  Calendar,
+  ShieldCheck
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,30 +18,106 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import NumberGrid from "@/components/rifas/NumberGrid";
-import { MOCK_RIFAS } from "@/components/rifas/MOCK_RIFAS";
+import RifaDetailActions from "@/components/rifas/RifaDetailActions";
+import { createClient } from "@/lib/supabase/server";
 import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
+import type { Rifa, RifaStats } from "@/lib/types";
 
-// Simulate params sync (Next 15 params is a Promise — unwrap with React.use in future, safe for now)
-function unwrapParamsSync(p: Promise<{ id: string }> | { id: string }): { id: string } {
-  type P = Promise<{ id: string }>;
-  if (p && typeof (p as P).then === "function") {
-    return { id: "00000000-0000-0000-0000-000000000001" };
+type RifaLookupRow = Rifa & {
+  creator: { id: string; full_name: string; avatar_url: string | null; country: string | null } | null;
+};
+
+async function getRifaById(id: string): Promise<{
+  rifa: RifaLookupRow;
+  stats: RifaStats;
+  soldNumbers: Set<string>;
+  mineNumbers: Set<string>;
+  currentUserId: string | null;
+} | null> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+    const uid = user?.id ?? null;
+
+    const { data: rifaRow, error: rErr } = await supabase
+      .from("rifas")
+      .select(
+        `id,creator_id,title,slug,description,prize_name,prize_image_url,
+         prize_value,is_solidarity,cause_name,cause_description,cause_target,
+         number_price,total_numbers,available_numbers,status,ends_at,draw_date,
+         created_at,updated_at,
+         creator:profiles!rifas_creator_id_fkey(id,full_name,avatar_url,country)`
+      )
+      .eq("id", id)
+      .maybeSingle();
+
+    if (rErr || !rifaRow) return null;
+
+    const rifa = rifaRow as unknown as RifaLookupRow;
+    const total = Number(rifa.total_numbers) || 100;
+    const avail = Number(rifa.available_numbers) ?? total;
+    const sold = Math.max(0, total - avail);
+    const soldPct = total > 0 ? Math.min(100, Math.round((sold / total) * 100)) : 0;
+    const stats: RifaStats = {
+      rifa_id: rifa.id,
+      total_numbers: total,
+      sold_numbers: sold,
+      available_numbers: avail,
+      sold_percentage: soldPct,
+      number_price: Number(rifa.number_price) || 0,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      status: rifa.status as any,
+      created_at: rifa.created_at as string,
+      ends_at: (rifa.ends_at as string | null) ?? null,
+      draw_date: (rifa.draw_date as string | null) ?? null
+    };
+
+    const soldSet = new Set<string>();
+    const mineSet = new Set<string>();
+    try {
+      const { data: rows } = await supabase
+        .from("reservas")
+        .select("number,status,user_id")
+        .eq("rifa_id", rifa.id)
+        .in("status", ["reserved", "paid"]);
+      if (rows && rows.length > 0) {
+        for (const r of rows as Array<{
+          number: string;
+          status: string;
+          user_id: string;
+        }>) {
+          soldSet.add(r.number);
+          if (uid && r.user_id === uid) mineSet.add(r.number);
+        }
+      }
+    } catch {
+      /* no-op */
+    }
+
+    return { rifa, stats, soldNumbers: soldSet, mineNumbers: mineSet, currentUserId: uid };
+  } catch (e) {
+    console.error("[rifa detail] fetch failed", e);
+    return null;
   }
-  return p as { id: string };
 }
 
-export default function RifaDetailPage({
+export default async function RifaDetailPage({
   params
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = unwrapParamsSync(params);
-  const match =
-    MOCK_RIFAS.find((m) => m.rifa.id === id) ?? MOCK_RIFAS[0];
-  if (!match) return notFound();
+  const { id } = await params;
+  const result = await getRifaById(id);
+  if (!result) {
+    // Si usuario no auth y la rifa no se pudo cargar → /auth?redirectTo
+    redirect(`/auth?redirectTo=${encodeURIComponent(`/rifas/${id}`)}`);
+    return notFound();
+  }
 
-  const { rifa, stats } = match;
+  const { rifa, stats, soldNumbers, mineNumbers, currentUserId } = result;
+  if (rifa.status !== "active") {
+    return notFound();
+  }
 
   const soldOut = stats.available_numbers <= 0;
   const raised = stats.sold_numbers * stats.number_price;
@@ -95,6 +180,11 @@ export default function RifaDetailPage({
               >
                 <Share2 className="h-3.5 w-3.5 mr-1" /> Compartir
               </Button>
+              {currentUserId && (
+                <Badge variant="outline" className="!bg-white/20 !text-white !border-white/30 backdrop-blur">
+                  {mineNumbers.size > 0 ? `🎟 ${mineNumbers.size} tuyos` : "Sesión iniciada"}
+                </Badge>
+              )}
             </div>
 
             <div className="absolute inset-0 grid place-items-center">
@@ -267,15 +357,22 @@ export default function RifaDetailPage({
                         <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
                           <span>Progreso de la causa</span>
                           <span className="font-numbers tabular-nums font-bold text-brand-cyan-700">
-                            {Math.min(100, Math.round((raised / rifa.cause_target) * 100))}%
+                            {rifa.cause_target > 0
+                              ? Math.min(100, Math.round((raised / rifa.cause_target) * 100))
+                              : 0}%
                           </span>
                         </div>
                         <Progress
-                          value={Math.min(100, (raised / rifa.cause_target) * 100)}
+                          value={
+                            rifa.cause_target > 0
+                              ? Math.min(100, (raised / rifa.cause_target) * 100)
+                              : 0
+                          }
                           className="h-2.5 [&>div]:bg-gradient-to-r [&>div]:from-brand-cyan [&>div]:to-brand-rose [&>div]:rounded-full"
                         />
                         <div className="text-[11px] text-slate-400">
-                          {formatCurrency(raised)} recaudados de {formatCurrency(rifa.cause_target)}
+                          {formatCurrency(raised)} recaudados de{" "}
+                          {formatCurrency(rifa.cause_target || 0)}
                         </div>
                       </div>
                     )}
@@ -285,11 +382,17 @@ export default function RifaDetailPage({
             </TabsContent>
 
             <TabsContent value="numeros" className="mt-5 focus-visible:outline-none focus-visible:ring-0">
-              <NumberGrid
-                totalNumbers={rifa.total_numbers}
+              <RifaDetailActions
+                rifaId={rifa.id}
+                isSolidarity={rifa.is_solidarity}
+                titleHeader="Participa ahora"
                 numberPrice={rifa.number_price}
+                totalNumbers={stats.total_numbers}
+                soldNumbers={soldNumbers}
+                mineNumbers={mineNumbers}
+                availableCount={stats.available_numbers}
                 soldPercentage={stats.sold_percentage}
-                maxSelections={20}
+                soldOut={soldOut}
               />
             </TabsContent>
 
@@ -346,7 +449,9 @@ export default function RifaDetailPage({
                     Cómo se realizará el sorteo
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
-                    {rifa.draw_instructions ?? "Sorteo público y transparente."}
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {(rifa as any).draw_instructions ??
+                      "Sorteo público y transparente."}
                   </p>
                   <div className="grid grid-cols-3 gap-2 pt-2">
                     {[
@@ -414,129 +519,6 @@ export default function RifaDetailPage({
             </TabsContent>
           </Tabs>
         </div>
-
-        <aside className="lg:col-span-2 space-y-4 lg:sticky lg:top-24 self-start">
-          <Card className="border border-slate-200 overflow-hidden shadow-[0_16px_50px_-24px_rgba(15,23,42,0.15)]">
-            <div
-              className={cn(
-                "px-5 py-4",
-                rifa.is_solidarity
-                  ? "bg-gradient-to-r from-brand-cyan to-brand-rose text-white"
-                  : "bg-gradient-to-r from-brand-rose to-brand-violet text-white"
-              )}
-            >
-              <div className="text-[11px] uppercase tracking-[0.2em] opacity-85 font-bold">
-                Participa ahora
-              </div>
-              <div className="mt-1 flex items-end justify-between gap-3">
-                <div>
-                  <div className="text-[11px] opacity-80 font-semibold">Precio por número</div>
-                  <div className="font-display font-black text-3xl leading-none tabular-nums">
-                    {formatCurrency(rifa.number_price)}
-                  </div>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className="!bg-white/20 !text-white !border-white/30 !border backdrop-blur"
-                >
-                  ⚡ {stats.available_numbers} disponibles
-                </Badge>
-              </div>
-            </div>
-
-            <CardContent className="p-5 space-y-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                  <span>Avance de venta</span>
-                  <span className="font-numbers tabular-nums font-bold text-slate-700">
-                    {stats.sold_percentage}%
-                  </span>
-                </div>
-                <Progress
-                  value={stats.sold_percentage}
-                  className="h-2.5 [&>div]:bg-gradient-to-r [&>div]:from-brand-rose [&>div]:to-brand-violet [&>div]:rounded-full"
-                />
-                <div className="text-[11px] text-slate-400 font-numbers tabular-nums">
-                  {stats.sold_numbers} vendidos · {stats.available_numbers} disponibles · {stats.total_numbers} total
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
-                <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">
-                  Tu carrito
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="secondary" className="px-2.5 py-0.5 text-xs">
-                    00
-                  </Badge>
-                  <Badge variant="secondary" className="px-2.5 py-0.5 text-xs">
-                    07
-                  </Badge>
-                  <Badge variant="outline" className="px-2.5 py-0.5 text-xs text-slate-400 !border-dashed">
-                    + seleccionar
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between pt-1">
-                  <div>
-                    <div className="text-[11px] text-slate-400 uppercase tracking-wider font-bold">
-                      Subtotal (2 núm.)
-                    </div>
-                    <div className="font-display font-black text-2xl tabular-nums text-slate-900">
-                      {formatCurrency(rifa.number_price * 2)}
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="!border-emerald-200 !bg-emerald-50 !text-emerald-700">
-                    <ShieldCheck className="h-3 w-3 mr-1" /> Pago seguro
-                  </Badge>
-                </div>
-              </div>
-
-              <Button
-                type="button"
-                disabled={soldOut}
-                className={cn(
-                  "w-full h-12 text-base font-bold rounded-xl shadow-cta active:scale-[0.98]",
-                  soldOut
-                    ? "!bg-slate-300 !text-slate-500"
-                    : "!bg-gradient-to-r from-brand-rose to-brand-violet !text-white"
-                )}
-              >
-                {soldOut ? (
-                  <>Todos los números vendidos — agotada</>
-                ) : (
-                  <>
-                    💳 Reservar y pagar · Mercado Pago
-                  </>
-                )}
-              </Button>
-
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                  🔒 SSL encriptado
-                </div>
-                <div className="text-[11px] text-slate-400 flex items-center gap-1.5 justify-end">
-                  ⏱ Reserva 15 min
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border border-dashed border-slate-200 bg-slate-50/60">
-            <CardContent className="p-4 text-xs space-y-2">
-              <div className="font-semibold text-slate-700 flex items-center gap-2">
-                🛡️ Nuestros 4 niveles anti-doble venta
-              </div>
-              <ol className="space-y-1 text-slate-500 list-decimal list-inside">
-                <li>Bloqueo inmediato UI al hacer clic</li>
-                <li>Transacción SERVIDOR con Row Lock</li>
-                <li>RPC `buy_reservations` FOR UPDATE</li>
-                <li>Unique Index parcial Postgres</li>
-              </ol>
-            </CardContent>
-          </Card>
-        </aside>
       </div>
     </div>
   );
