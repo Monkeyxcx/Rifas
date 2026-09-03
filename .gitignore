@@ -38,6 +38,9 @@ next-env.d.ts.backup
 # supabase
 /supabase/.temp
 
+# debug scripts y test E2E temporales
+.tmp/
+
 # editors
 .idea
 .vscode
