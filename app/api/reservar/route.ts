@@ -81,19 +81,9 @@ export async function POST(req: Request) {
 
   const rifaMock: Rifa | undefined = MOCK_RIFAS.find((r) => r.rifa.id === rifaId)?.rifa;
 
-  let unitPrice = 0;
-  let totalNumbers = 100;
-  if (rifaMock) {
-    unitPrice = rifaMock.number_price;
-    totalNumbers = rifaMock.total_numbers;
-  }
-
-  if (numbers.some((n) => parseInt(n, 10) >= totalNumbers)) {
-    return NextResponse.json(
-      { ok: false, error: `Numeros fuera del rango de esta rifa (00-${String(totalNumbers - 1).padStart(2, "0")}).` },
-      { status: 400 }
-    );
-  }
+  let unitPrice = rifaMock?.number_price ?? 0;
+  let totalNumbers = rifaMock?.total_numbers ?? 100;
+  let rifaFromDb: Rifa | null = null;
 
   // ======================================================================
   // AUTH: Intentamos obtener usuario. Fallback mock crea user anonimo demo.
@@ -125,10 +115,41 @@ export async function POST(req: Request) {
     displayName = "Comprador Demo";
   }
 
-  if (!rifaMock && mockUser) {
+  if (!rifaMock && !isMockMode()) {
+    try {
+      const sb = await createClient();
+      const { data } = await sb
+        .from("rifas")
+        .select(
+          `id,creator_id,title,slug,description,prize_name,prize_image_url,
+           prize_value,is_solidarity,cause_name,cause_description,cause_target,
+           number_price,total_numbers,available_numbers,status,ends_at,draw_date,
+           created_at,updated_at,
+           creator:profiles!rifas_creator_id_fkey(id,full_name,avatar_url,country)`
+        )
+        .eq("id", rifaId)
+        .maybeSingle();
+      if (data) {
+        rifaFromDb = data as unknown as Rifa;
+        unitPrice = rifaFromDb.number_price;
+        totalNumbers = rifaFromDb.total_numbers;
+      }
+    } catch (e) {
+      console.warn("[reservar] supabase rifa lookup fallback skipped", e);
+    }
+  }
+
+  if (!rifaMock && !rifaFromDb) {
     return NextResponse.json(
       { ok: false, error: "Rifa no encontrada." },
       { status: 404 }
+    );
+  }
+
+  if (numbers.some((n) => parseInt(n, 10) >= totalNumbers)) {
+    return NextResponse.json(
+      { ok: false, error: `Numeros fuera del rango de esta rifa (00-${String(totalNumbers - 1).padStart(2, "0")}).` },
+      { status: 400 }
     );
   }
 
