@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
 import {
+  isTesting,
   mpPayment,
-  verifyWebhookSignature,
-  isTesting
+  verifyWebhookSignature
 } from "@/lib/mercadopago";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { PagoStatus, ReservaStatus } from "@/lib/types";
+import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -305,24 +305,13 @@ export async function POST(req: NextRequest) {
         if (status === "approved") {
           const newStatusPaid: ReservaStatus = "paid";
           const nowIso = new Date().toISOString();
-          if (reservaIdRaw) {
+          if (rifaIdRaw && numbers.length) {
             await q(
               sb
                 .from("reservas")
                 .update({ status: newStatusPaid, updated_at: nowIso })
-                .eq("id", reservaIdRaw) as Promise<{ data: unknown; error: unknown }>
-            );
-          } else if (rifaIdRaw && numbers.length) {
-            await Promise.all(
-              numbers.map((n) =>
-                q(
-                  sb
-                    .from("reservas")
-                    .update({ status: newStatusPaid, updated_at: nowIso })
-                    .eq("rifa_id", rifaIdRaw)
-                    .eq("number", n) as Promise<{ data: unknown; error: unknown }>
-                )
-              )
+                .eq("rifa_id", rifaIdRaw)
+                .in("number", numbers) as Promise<{ data: unknown; error: unknown }>
             );
           }
 
