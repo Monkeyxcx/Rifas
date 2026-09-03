@@ -4,7 +4,7 @@ import {
   verifyWebhookSignature,
   isTesting
 } from "@/lib/mercadopago";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import type { PagoStatus, ReservaStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
   let user_id: string | null = null;
   if (hasMercadoPagoCredentials() && (rifaIdRaw || reservaIdRaw)) {
     try {
-      const supabase = await createClient();
+      const supabase = createServiceClient();
       const sb = supabase as unknown as {
         from: (t: string) => any;
       };
@@ -244,7 +244,8 @@ export async function POST(req: NextRequest) {
         const { data: reservaRow }: { data?: any[] | null } = await sb
           .from("reservas")
           .select("user_id, rifa_id, number")
-          .eq("id", reservaIdRaw);
+          .eq("id", reservaIdRaw)
+          .throw();
         if (reservaRow && reservaRow[0]) {
           if (!user_id && reservaRow[0].user_id) user_id = reservaRow[0].user_id;
           if (!rifaIdRaw && reservaRow[0].rifa_id)
@@ -259,7 +260,8 @@ export async function POST(req: NextRequest) {
           .select("user_id")
           .eq("rifa_id", rifaIdRaw)
           .in("number", numbers)
-          .eq("status", "reserved");
+          .eq("status", "reserved")
+          .throw();
         if (list && list[0]?.user_id) user_id = list[0].user_id;
       }
 
@@ -287,7 +289,7 @@ export async function POST(req: NextRequest) {
           mercado_pago_raw: payment,
           paid_at: payment.date_approved ?? null
         };
-        await sb.from("pagos").insert(pagoRow);
+        await sb.from("pagos").insert(pagoRow).throw();
 
         // 4d. Si approved → actualizar reservas a paid
         if (status === "approved") {
@@ -297,7 +299,8 @@ export async function POST(req: NextRequest) {
             await sb
               .from("reservas")
               .update({ status: newStatusPaid, updated_at: nowIso })
-              .eq("id", reservaIdRaw);
+              .eq("id", reservaIdRaw)
+              .throw();
           } else if (rifaIdRaw && numbers.length) {
             await Promise.all(
               numbers.map((n) =>
@@ -306,6 +309,7 @@ export async function POST(req: NextRequest) {
                   .update({ status: newStatusPaid, updated_at: nowIso })
                   .eq("rifa_id", rifaIdRaw)
                   .eq("number", n)
+                  .throw()
               )
             );
           }
@@ -323,7 +327,10 @@ export async function POST(req: NextRequest) {
               read_at: null,
               created_at: new Date().toISOString()
             };
-            await sb.from("notifications").insert(notiRow);
+            await sb.from("notifications").insert(notiRow).throw();
+            console.log(
+              `[mercadopago/webhook] side-effects OK pago id=${payment.id} status=approved pagos.pago_id=${pagoId}`
+            );
           }
         }
       }
