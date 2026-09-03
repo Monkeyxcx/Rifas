@@ -172,7 +172,10 @@ export async function POST(req: Request) {
   // FALLBACK MOCK: sin credenciales MP devolvemos preference demo.
   // =====================================================================
   const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.NODE_ENV === "development" && process.env.PORT
+      ? `http://localhost:${process.env.PORT}`
+      : "http://localhost:3000");
   const numbersCsv = numbers.join(",");
   const backQs = new URLSearchParams({
     rifa_id: rifaId,
