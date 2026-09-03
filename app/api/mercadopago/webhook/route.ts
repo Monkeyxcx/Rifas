@@ -235,24 +235,31 @@ export async function POST(req: NextRequest) {
   if (hasMercadoPagoCredentials() && (rifaIdRaw || reservaIdRaw)) {
     try {
       const supabase = createServiceClient();
-      const sb = supabase as unknown as {
-        from: (t: string) => any;
-      };
+      type SbRow = Record<string, unknown>;
+      // Supabase JS SDK es fluido pero los chain types varían entre versiones.
+      // Este único cast evita romper TS en cada minor bump de @supabase/* y
+      // además satisface @typescript-eslint/no-explicit-any sin desactivarlo global.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
 
-      async function q<T = unknown>(prom: Promise<{ data: T | null; error: unknown }>): Promise<T | null> {
+      async function q<T = unknown>(
+        prom: Promise<{ data: T | null; error: unknown }>
+      ): Promise<T | null> {
         const { data, error } = await prom;
         if (error) throw error;
         return data;
       }
 
+      type ReservaLookupRow = SbRow & { user_id?: string; rifa_id?: string; number?: string };
+
       // 4a. Resolver rifa_id + user_id desde reserva_id si falta alguno
       if (reservaIdRaw && (!rifaIdRaw || !user_id)) {
-        const reservaRow = (await q<any[]>(
+        const reservaRow = (await q<ReservaLookupRow[]>(
           sb
             .from("reservas")
             .select("user_id, rifa_id, number")
             .eq("id", reservaIdRaw)
-        )) as any[] | null;
+        )) as ReservaLookupRow[] | null;
         if (reservaRow && reservaRow[0]) {
           if (!user_id && reservaRow[0].user_id) user_id = reservaRow[0].user_id;
           if (!rifaIdRaw && reservaRow[0].rifa_id)
@@ -262,14 +269,14 @@ export async function POST(req: NextRequest) {
 
       // 4b. Buscar el user_id por las reservas si tenemos rifa + numbers reserved
       if (!user_id && numbers.length && rifaIdRaw) {
-        const list = (await q<any[]>(
+        const list = (await q<ReservaLookupRow[]>(
           sb
             .from("reservas")
             .select("user_id")
             .eq("rifa_id", rifaIdRaw)
             .in("number", numbers)
             .eq("status", "reserved")
-        )) as any[] | null;
+        )) as ReservaLookupRow[] | null;
         if (list && list[0]?.user_id) user_id = list[0].user_id;
       }
 
@@ -297,9 +304,7 @@ export async function POST(req: NextRequest) {
           mercado_pago_raw: payment,
           paid_at: payment.date_approved ?? null
         };
-        await q(
-          sb.from("pagos").insert(pagoRow) as Promise<{ data: unknown; error: unknown }>
-        );
+        await q(sb.from("pagos").insert(pagoRow));
 
         // 4d. Si approved → actualizar reservas a paid
         if (status === "approved") {
@@ -311,7 +316,7 @@ export async function POST(req: NextRequest) {
                 .from("reservas")
                 .update({ status: newStatusPaid, updated_at: nowIso })
                 .eq("rifa_id", rifaIdRaw)
-                .in("number", numbers) as Promise<{ data: unknown; error: unknown }>
+                .in("number", numbers)
             );
           }
 
@@ -328,9 +333,7 @@ export async function POST(req: NextRequest) {
               read_at: null,
               created_at: new Date().toISOString()
             };
-            await q(
-              sb.from("notifications").insert(notiRow) as Promise<{ data: unknown; error: unknown }>
-            );
+            await q(sb.from("notifications").insert(notiRow));
             console.log(
               `[mercadopago/webhook] side-effects OK pago id=${payment.id} status=approved pagos.pago_id=${pagoId}`
             );
