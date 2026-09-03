@@ -1,7 +1,4 @@
-"use client";
-
 import Link from "next/link";
-import { useMemo, useState } from "react";
 import {
   Search,
   SlidersHorizontal,
@@ -10,8 +7,7 @@ import {
   Trophy,
   TrendingUp,
   Clock,
-  Sparkles,
-  X
+  Sparkles
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,95 +15,94 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { RifaCard } from "@/components/rifas/RifaCard";
-import { MOCK_RIFAS } from "@/components/rifas/MOCK_RIFAS";
+import { createClient } from "@/lib/supabase/server";
 import { cn, formatCurrency } from "@/lib/utils";
+import type { Rifa, RifaStats } from "@/lib/types";
 
 type SortKey = "trending" | "ending" | "newest" | "cheapest";
-type FilterTab = "all" | "solidarity" | "premium";
 
-export default function RifasListPage() {
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("trending");
-  const [tab, setTab] = useState<FilterTab>("all");
-  const [maxPrice, setMaxPrice] = useState<number>(0);
+type RifaWithStats = {
+  rifa: Rifa;
+  stats: RifaStats;
+};
 
-  const maxPriceAvailable = useMemo(() => {
-    const max = Math.max(...MOCK_RIFAS.map((x) => x.rifa.number_price));
-    return max;
-  }, []);
+async function getActiveRifas(): Promise<RifaWithStats[]> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("rifas")
+      .select(
+        `id,creator_id,title,slug,description,prize_name,prize_image_url,
+         prize_value,is_solidarity,cause_name,cause_description,cause_target,
+         number_price,total_numbers,available_numbers,status,ends_at,draw_date,
+         created_at,updated_at,
+         creator:profiles!rifas_creator_id_fkey(id,full_name,avatar_url,country)`
+      )
+      .eq("status", "active")
+      .order("created_at", { ascending: false });
 
-  const filtered = useMemo(() => {
-    let list = [...MOCK_RIFAS];
+    if (!data || data.length === 0) return [];
+    return (data as Rifa[]).map((row) => {
+      const total = Number(row.total_numbers) || 0;
+      const avail = Number(row.available_numbers) ?? total;
+      const sold = Math.max(0, total - avail);
+      const soldPct = total > 0 ? Math.min(100, Math.round((sold / total) * 100)) : 0;
+      return {
+        rifa: row as Rifa,
+        stats: {
+          rifa_id: row.id,
+          total_numbers: total,
+          sold_numbers: sold,
+          available_numbers: avail,
+          sold_percentage: soldPct,
+          number_price: Number(row.number_price) || 0,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          status: row.status as any,
+          created_at: row.created_at as string,
+          ends_at: (row.ends_at as string | null) ?? null,
+          draw_date: (row.draw_date as string | null) ?? null
+        } as RifaStats
+      };
+    });
+  } catch (e) {
+    console.error("[rifas] fetch real failed", e);
+    return [];
+  }
+}
 
-    if (tab === "solidarity")
-      list = list.filter((x) => x.rifa.is_solidarity);
-    if (tab === "premium")
-      list = list.filter(
-        (x) => !x.rifa.is_solidarity && x.rifa.prize_value >= 5_000_000
-      );
+export default async function RifasListPage({
+  searchParams
+}: {
+  searchParams: Promise<{ q?: string; tab?: string; sort?: string; max?: string }>;
+}) {
+  const raw = await searchParams;
+  const initialQuery = raw.q ?? "";
+  const initialTab: string = raw.tab ?? "all";
+  const initialSort: SortKey =
+    (raw.sort as SortKey) ?? "trending";
+  const initialMaxPrice = Number(raw.max ?? 0) || 0;
 
-    if (query.trim().length > 0) {
-      const q = query.trim().toLowerCase();
-      list = list.filter(
-        ({ rifa }) =>
-          rifa.title.toLowerCase().includes(q) ||
-          rifa.prize_name.toLowerCase().includes(q) ||
-          (rifa.cause_name ?? "").toLowerCase().includes(q) ||
-          (rifa.creator?.full_name ?? "")
-            .toLowerCase()
-            .includes(q)
-      );
-    }
+  const allRifas = await getActiveRifas();
 
-    if (maxPrice > 0) {
-      list = list.filter((x) => x.rifa.number_price <= maxPrice);
-    }
-
-    switch (sort) {
-      case "trending":
-        list.sort((a, b) => b.stats.sold_percentage - a.stats.sold_percentage);
-        break;
-      case "ending":
-        list.sort(
-          (a, b) =>
-            new Date(a.rifa.ends_at ?? "").getTime() -
-            new Date(b.rifa.ends_at ?? "").getTime()
-        );
-        break;
-      case "newest":
-        list.sort(
-          (a, b) =>
-            new Date(b.rifa.created_at).getTime() -
-            new Date(a.rifa.created_at).getTime()
-        );
-        break;
-      case "cheapest":
-        list.sort((a, b) => a.rifa.number_price - b.rifa.number_price);
-        break;
-    }
-
-    return list;
-  }, [query, sort, tab, maxPrice]);
-
-  const stats = useMemo(() => {
-    const totalRifas = MOCK_RIFAS.length;
-    const totalSolidarity = MOCK_RIFAS.filter(
-      (x) => x.rifa.is_solidarity
-    ).length;
-    const totalRaised = MOCK_RIFAS.reduce(
-      (acc, { rifa, stats }) =>
-        acc + stats.sold_numbers * rifa.number_price,
-      0
-    );
-    const totalNumbersSold = MOCK_RIFAS.reduce(
-      (acc, { stats }) => acc + stats.sold_numbers,
-      0
-    );
-    return { totalRifas, totalSolidarity, totalRaised, totalNumbersSold };
-  }, []);
+  // Stats agregadas para header (server side, no filtros)
+  const totalRifas = allRifas.length;
+  const totalSolidarity = allRifas.filter((x) => x.rifa.is_solidarity).length;
+  const totalRaised = allRifas.reduce(
+    (acc, { rifa, stats }) =>
+      acc + stats.sold_numbers * Number(rifa.number_price || 0),
+    0
+  );
+  const totalNumbersSold = allRifas.reduce(
+    (acc, { stats }) => acc + stats.sold_numbers,
+    0
+  );
+  const maxPriceAvailable =
+    allRifas.length > 0
+      ? Math.max(...allRifas.map((x) => Number(x.rifa.number_price) || 0))
+      : 100_000;
 
   return (
-    <div className="relative pb-16">
+    <div className="relative pb-16" data-server-prefill='JSON.stringify({initialQuery,initialTab,initialSort,initialMaxPrice,maxPriceAvailable})'>
       {/* ===== Header + Búsqueda ===== */}
       <div
         className="relative overflow-hidden border-b border-slate-200/70"
@@ -130,7 +125,8 @@ export default function RifasListPage() {
               <div>
                 <Badge variant="active" className="mb-3 gap-1.5">
                   <Sparkles className="h-3.5 w-3.5" />
-                  {stats.totalRifas} rifas activas en este momento
+                  {totalRifas} rifa{totalRifas === 1 ? "" : "s"} activa
+                  {totalRifas === 1 ? "" : "s"} en este momento
                 </Badge>
                 <h1 className="font-display font-black tracking-tight text-3xl md:text-4xl leading-tight">
                   Explora y participa en rifas de{" "}
@@ -151,7 +147,7 @@ export default function RifasListPage() {
                     Recaudado
                   </div>
                   <div className="font-display font-extrabold text-slate-900 text-lg">
-                    {formatCurrency(stats.totalRaised)}
+                    {formatCurrency(totalRaised)}
                   </div>
                 </div>
                 <div className="rounded-xl bg-white/80 backdrop-blur px-4 py-3 shadow-sm border border-slate-200/80 min-w-[140px]">
@@ -160,7 +156,7 @@ export default function RifasListPage() {
                     Nros vendidos
                   </div>
                   <div className="font-display font-extrabold text-slate-900 text-lg">
-                    {stats.totalNumbersSold.toLocaleString("es-419")}
+                    {totalNumbersSold.toLocaleString("es-419")}
                   </div>
                 </div>
               </div>
@@ -170,21 +166,11 @@ export default function RifasListPage() {
             <div className="relative mt-1 max-w-3xl group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-slate-400 group-focus-within:text-brand-rose transition-colors" />
               <Input
+                defaultValue={initialQuery}
+                name="q"
                 placeholder="Busca un premio, causa solidaria o creador…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
                 className="h-12 pl-11 pr-12 rounded-2xl border-slate-200 bg-white shadow-sm text-base focus:ring-2 focus:ring-brand-rose/20 focus:border-brand-rose/60"
               />
-              {query && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1.5 top-1.5 h-9 w-9 rounded-xl text-slate-500 hover:bg-slate-100"
-                  onClick={() => setQuery("")}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
             </div>
           </div>
         </div>
@@ -193,11 +179,7 @@ export default function RifasListPage() {
       {/* ===== Filtros ===== */}
       <div className="container max-w-content mt-6 md:mt-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <Tabs
-            defaultValue={tab}
-            onValueChange={(v) => setTab(v as FilterTab)}
-            className="w-full"
-          >
+          <Tabs defaultValue={initialTab} className="w-full">
             <TabsList className="inline-flex rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-1 shadow-sm">
               <TabsTrigger
                 value="all"
@@ -211,7 +193,7 @@ export default function RifasListPage() {
                 className="data-[state=active]:bg-gradient-solidario data-[state=active]:text-white rounded-xl h-9 px-4"
               >
                 <Heart className="h-4 w-4 mr-1.5" fill="currentColor" />
-                Solidarias <span className="ml-1.5 opacity-75 text-xs">({stats.totalSolidarity})</span>
+                Solidarias <span className="ml-1.5 opacity-75 text-xs">({totalSolidarity})</span>
               </TabsTrigger>
               <TabsTrigger
                 value="premium"
@@ -239,14 +221,13 @@ export default function RifasListPage() {
               <Button
                 key={k}
                 size="sm"
-                variant={sort === k ? "default" : "outline"}
+                variant={initialSort === k ? "default" : "outline"}
                 className={cn(
                   "h-8 rounded-xl",
-                  sort === k
+                  initialSort === k
                     ? "bg-gradient-cta shadow-cta border-0 text-white"
                     : "text-slate-700"
                 )}
-                onClick={() => setSort(k)}
               >
                 <Icon className="h-3.5 w-3.5 mr-1.5" />
                 {label}
@@ -267,66 +248,37 @@ export default function RifasListPage() {
                 min={0}
                 max={maxPriceAvailable}
                 step={1000}
-                value={maxPrice || maxPriceAvailable}
-                onChange={(e) =>
-                  setMaxPrice(
-                    Number(e.target.value) >= maxPriceAvailable
-                      ? 0
-                      : Number(e.target.value)
-                  )
-                }
+                defaultValue={initialMaxPrice || maxPriceAvailable}
                 className="w-full accent-brand-rose cursor-pointer"
               />
             </div>
             <div className="text-sm font-display font-extrabold text-slate-900 min-w-[110px] text-right">
               Hasta{" "}
               {formatCurrency(
-                maxPrice > 0 ? maxPrice : maxPriceAvailable
+                initialMaxPrice > 0 ? initialMaxPrice : maxPriceAvailable
               )}
             </div>
-            {maxPrice > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 rounded-lg px-2 text-slate-500"
-                onClick={() => setMaxPrice(0)}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            )}
           </div>
         </div>
 
         <Separator className="my-8 bg-slate-200/80" />
 
         {/* ===== Resultados ===== */}
-        {filtered.length === 0 ? (
+        {allRifas.length === 0 ? (
           <div className="py-20 grid place-items-center">
             <div className="max-w-md text-center space-y-4">
               <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-brand-rose/10 text-brand-rose">
                 <Search className="h-8 w-8" />
               </div>
               <h3 className="font-display text-xl font-bold">
-                No encontramos rifas para tu búsqueda
+                No hay rifas activas en este momento
               </h3>
               <p className="text-slate-600 leading-relaxed">
-                Intenta con otro premio, una causa distinta o quita algunos
-                filtros. Siempre hay nuevas rifas entrando a la plataforma.
+                Sé el primero en crear una rifa y gana premios o apoya una causa
+                solidaria.
               </p>
               <div className="flex items-center justify-center gap-2 pt-2">
-                <Button variant="outline" onClick={() => {
-                  setQuery("");
-                  setTab("all");
-                  setSort("trending");
-                  setMaxPrice(0);
-                }}>
-                  <X className="h-4 w-4" />
-                  Quitar filtros
-                </Button>
-                <Button
-                  asChild
-                  variant="gradient"
-                >
+                <Button asChild variant="gradient">
                   <Link href="/rifas/crear">
                     <Ticket className="h-4 w-4" />
                     Crear la mía
@@ -339,8 +291,8 @@ export default function RifasListPage() {
           <>
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-display font-bold text-slate-900 text-lg">
-                {filtered.length} rifa{filtered.length === 1 ? "" : "s"} coincidente
-                {filtered.length === 1 ? "" : "s"}
+                {allRifas.length} rifa{allRifas.length === 1 ? "" : "s"} disponible
+                {allRifas.length === 1 ? "" : "s"}
               </h2>
               <div className="text-xs text-slate-500">
                 Ordenado por{" "}
@@ -351,14 +303,14 @@ export default function RifasListPage() {
                       ending: "fecha de cierre (más cercano)",
                       newest: "más nuevas primero",
                       cheapest: "precio número (asc)"
-                    }[sort]
+                    }[initialSort]
                   }
                 </span>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-7">
-              {filtered.map(({ rifa, stats: st }) => (
+              {allRifas.map(({ rifa, stats: st }) => (
                 <RifaCard
                   key={rifa.id}
                   rifa={rifa}
