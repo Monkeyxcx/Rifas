@@ -235,19 +235,14 @@ export async function POST(req: NextRequest) {
   if (hasMercadoPagoCredentials() && (rifaIdRaw || reservaIdRaw)) {
     try {
       const supabase = await createClient();
+      const sb = supabase as unknown as {
+        from: (t: string) => any;
+      };
 
       // 4a. Resolver rifa_id + user_id desde reserva_id si falta alguno
       if (reservaIdRaw && (!rifaIdRaw || !user_id)) {
-        const { data: reservaRow } = await (supabase
-          .from("reservas") as unknown as {
-          select: (cols: string) => {
-            eq: (k: string, v: unknown) => Promise<{
-              data?:
-                | Array<{ user_id?: string; rifa_id?: string; number?: string }>
-                | null;
-            }>;
-          };
-        })
+        const { data: reservaRow }: { data?: any[] | null } = await sb
+          .from("reservas")
           .select("user_id, rifa_id, number")
           .eq("id", reservaIdRaw);
         if (reservaRow && reservaRow[0]) {
@@ -259,110 +254,84 @@ export async function POST(req: NextRequest) {
 
       // 4b. Buscar el user_id por las reservas si tenemos rifa + numbers reserved
       if (!user_id && numbers.length && rifaIdRaw) {
-        const { data: list } = await (supabase
-          .from("reservas") as unknown as {
-          select: (cols: string) => {
-            eq: (k: string, v: unknown) => {
-              in_: (k: string, vs: string[]) => {
-                eq2: (k: string, v: unknown) => Promise<{
-                  data?: Array<{ user_id?: string }> | null;
-                }>;
-              };
-            };
-          };
-        })
+        const { data: list }: { data?: any[] | null } = await sb
+          .from("reservas")
           .select("user_id")
           .eq("rifa_id", rifaIdRaw)
-          .in_("number", numbers)
-          .eq2("status", "reserved");
+          .in("number", numbers)
+          .eq("status", "reserved");
         if (list && list[0]?.user_id) user_id = list[0].user_id;
       }
 
       if (!rifaIdRaw) {
         console.warn("[mercadopago/webhook] sin rifa_id resoluble — side-effects cancelados.");
       } else {
-      // 4c. Insert Pago
-      const pagoId = generateUUID();
-      await (supabase.from("pagos") as unknown as {
-        insert: (
-          rows: Record<string, unknown> | Record<string, unknown>[]
-        ) => Promise<unknown>;
-      }).insert({
-        id: pagoId,
-        rifa_id: rifaIdRaw,
-        user_id,
-        reserva_id: reservaIdRaw,
-        mercado_pago_payment_id: String(payment.id ?? ""),
-        mercado_pago_preference_id: null,
-        external_reference: externalReference || null,
-        status,
-        amount: totalAmount,
-        fee_amount: feeAmount,
-        net_received_amount: netAmount,
-        payment_method: payment.payment_method_id ?? null,
-        payment_type: payment.payment_type_id ?? null,
-        installments: payment.installments ?? 1,
-        payer_email: payerEmail,
-        mercado_pago_raw: payment,
-        paid_at: payment.date_approved ?? null
-      } as Record<string, unknown>);
+        // 4c. Insert Pago
+        const pagoId = generateUUID();
+        const pagoRow = {
+          id: pagoId,
+          rifa_id: rifaIdRaw,
+          user_id,
+          reserva_id: reservaIdRaw,
+          mercado_pago_payment_id: String(payment.id ?? ""),
+          mercado_pago_preference_id: null,
+          external_reference: externalReference || null,
+          status,
+          amount: totalAmount,
+          fee_amount: feeAmount,
+          net_received_amount: netAmount,
+          payment_method: payment.payment_method_id ?? null,
+          payment_type: payment.payment_type_id ?? null,
+          installments: payment.installments ?? 1,
+          payer_email: payerEmail,
+          mercado_pago_raw: payment,
+          paid_at: payment.date_approved ?? null
+        };
+        await sb.from("pagos").insert(pagoRow);
 
-      // 4d. Si approved → actualizar reservas a paid
-      if (status === "approved") {
-        const newStatusPaid: ReservaStatus = "paid";
-        if (reservaIdRaw) {
-          await (supabase.from("reservas") as unknown as {
-            update: (patch: Record<string, unknown>) => {
-              eq: (k: string, v: unknown) => Promise<unknown>;
+        // 4d. Si approved → actualizar reservas a paid
+        if (status === "approved") {
+          const newStatusPaid: ReservaStatus = "paid";
+          const nowIso = new Date().toISOString();
+          if (reservaIdRaw) {
+            await sb
+              .from("reservas")
+              .update({ status: newStatusPaid, updated_at: nowIso })
+              .eq("id", reservaIdRaw);
+          } else if (rifaIdRaw && numbers.length) {
+            await Promise.all(
+              numbers.map((n) =>
+                sb
+                  .from("reservas")
+                  .update({ status: newStatusPaid, updated_at: nowIso })
+                  .eq("rifa_id", rifaIdRaw)
+                  .eq("number", n)
+              )
+            );
+          }
+
+          // 4e. INSERT Notificación type = pago_aprobado
+          if (user_id) {
+            const notiRow = {
+              id: generateUUID(),
+              user_id,
+              rifa_id: rifaIdRaw,
+              type: "pago_aprobado",
+              title: "¡Pago aprobado! 🎉",
+              message: `Tu pago por ${numbers.length} número${numbers.length === 1 ? "" : "s"} (${numbers.join(", ")}) fue aprobado exitosamente. Revisa mis rifas para ver tu ticket oficial.`,
+              action_url: "/mis-rifas/participando",
+              read_at: null,
+              created_at: new Date().toISOString()
             };
-          })
-            .update({ status: newStatusPaid, updated_at: new Date().toISOString() })
-            .eq("id", reservaIdRaw);
-        } else if (rifaIdRaw && numbers.length) {
-          // Por cada número, update status reserved → paid
-          await Promise.all(
-            numbers.map((n) =>
-              (supabase.from("reservas") as unknown as {
-                update: (patch: Record<string, unknown>) => {
-                  eq: (k: string, v: unknown) => {
-                    eq2: (k: string, v: unknown) => Promise<unknown>;
-                  };
-                };
-              })
-                .update({
-                  status: newStatusPaid,
-                  updated_at: new Date().toISOString()
-                })
-                .eq("rifa_id", rifaIdRaw)
-                .eq2("number", n)
-            )
-          );
-        }
-
-        // 4e. INSERT Notificación type = pago_aprobado
-        if (user_id) {
-          await (supabase.from("notifications") as unknown as {
-            insert: (row: Record<string, unknown>) => Promise<unknown>;
-          }).insert({
-            id: generateUUID(),
-            user_id,
-            rifa_id: rifaIdRaw,
-            type: "pago_aprobado",
-            title: "¡Pago aprobado! 🎉",
-            message: `Tu pago por ${numbers.length} número${numbers.length === 1 ? "" : "s"} (${numbers.join(", ")}) fue aprobado exitosamente. Revisa mis rifas para ver tu ticket oficial.`,
-            action_url: "/mis-rifas/participando",
-            read_at: null,
-            created_at: new Date().toISOString()
-          } as Record<string, unknown>);
+            await sb.from("notifications").insert(notiRow);
+          }
         }
       }
-      } // close: if (rifaIdRaw) { ... } else { ... }
     } catch (err) {
       console.error(
         `[mercadopago/webhook] side-effects supabase fallaron pago ${payment.id} status=${status}`,
         err
       );
-      // Respondemos 200 igual, MP no debe saber que falló. Crons reintentan luego.
     }
   } else {
     // MODE MOCK SIN SUPABASE: logueamos flujo exitoso para QA
