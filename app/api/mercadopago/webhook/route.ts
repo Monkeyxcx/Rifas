@@ -239,13 +239,20 @@ export async function POST(req: NextRequest) {
         from: (t: string) => any;
       };
 
+      async function q<T = unknown>(prom: Promise<{ data: T | null; error: unknown }>): Promise<T | null> {
+        const { data, error } = await prom;
+        if (error) throw error;
+        return data;
+      }
+
       // 4a. Resolver rifa_id + user_id desde reserva_id si falta alguno
       if (reservaIdRaw && (!rifaIdRaw || !user_id)) {
-        const { data: reservaRow }: { data?: any[] | null } = await sb
-          .from("reservas")
-          .select("user_id, rifa_id, number")
-          .eq("id", reservaIdRaw)
-          .throw();
+        const reservaRow = (await q<any[]>(
+          sb
+            .from("reservas")
+            .select("user_id, rifa_id, number")
+            .eq("id", reservaIdRaw)
+        )) as any[] | null;
         if (reservaRow && reservaRow[0]) {
           if (!user_id && reservaRow[0].user_id) user_id = reservaRow[0].user_id;
           if (!rifaIdRaw && reservaRow[0].rifa_id)
@@ -255,13 +262,14 @@ export async function POST(req: NextRequest) {
 
       // 4b. Buscar el user_id por las reservas si tenemos rifa + numbers reserved
       if (!user_id && numbers.length && rifaIdRaw) {
-        const { data: list }: { data?: any[] | null } = await sb
-          .from("reservas")
-          .select("user_id")
-          .eq("rifa_id", rifaIdRaw)
-          .in("number", numbers)
-          .eq("status", "reserved")
-          .throw();
+        const list = (await q<any[]>(
+          sb
+            .from("reservas")
+            .select("user_id")
+            .eq("rifa_id", rifaIdRaw)
+            .in("number", numbers)
+            .eq("status", "reserved")
+        )) as any[] | null;
         if (list && list[0]?.user_id) user_id = list[0].user_id;
       }
 
@@ -289,27 +297,31 @@ export async function POST(req: NextRequest) {
           mercado_pago_raw: payment,
           paid_at: payment.date_approved ?? null
         };
-        await sb.from("pagos").insert(pagoRow).throw();
+        await q(
+          sb.from("pagos").insert(pagoRow) as Promise<{ data: unknown; error: unknown }>
+        );
 
         // 4d. Si approved → actualizar reservas a paid
         if (status === "approved") {
           const newStatusPaid: ReservaStatus = "paid";
           const nowIso = new Date().toISOString();
           if (reservaIdRaw) {
-            await sb
-              .from("reservas")
-              .update({ status: newStatusPaid, updated_at: nowIso })
-              .eq("id", reservaIdRaw)
-              .throw();
+            await q(
+              sb
+                .from("reservas")
+                .update({ status: newStatusPaid, updated_at: nowIso })
+                .eq("id", reservaIdRaw) as Promise<{ data: unknown; error: unknown }>
+            );
           } else if (rifaIdRaw && numbers.length) {
             await Promise.all(
               numbers.map((n) =>
-                sb
-                  .from("reservas")
-                  .update({ status: newStatusPaid, updated_at: nowIso })
-                  .eq("rifa_id", rifaIdRaw)
-                  .eq("number", n)
-                  .throw()
+                q(
+                  sb
+                    .from("reservas")
+                    .update({ status: newStatusPaid, updated_at: nowIso })
+                    .eq("rifa_id", rifaIdRaw)
+                    .eq("number", n) as Promise<{ data: unknown; error: unknown }>
+                )
               )
             );
           }
@@ -327,7 +339,9 @@ export async function POST(req: NextRequest) {
               read_at: null,
               created_at: new Date().toISOString()
             };
-            await sb.from("notifications").insert(notiRow).throw();
+            await q(
+              sb.from("notifications").insert(notiRow) as Promise<{ data: unknown; error: unknown }>
+            );
             console.log(
               `[mercadopago/webhook] side-effects OK pago id=${payment.id} status=approved pagos.pago_id=${pagoId}`
             );
