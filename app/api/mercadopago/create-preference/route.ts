@@ -171,12 +171,30 @@ export async function POST(req: Request) {
   // =====================================================================
   // FALLBACK MOCK: sin credenciales MP devolvemos preference demo.
   // =====================================================================
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const numbersCsv = numbers.join(",");
+  const backQs = new URLSearchParams({
+    rifa_id: rifaId,
+    numbers: numbersCsv,
+    reserva_id: reservaId ?? ""
+  });
+  const successUrl = `${baseUrl}/checkout/success?${backQs.toString()}`;
+  const pendingUrl = `${baseUrl}/checkout/pending?${backQs.toString()}`;
+  const failureUrl = `${baseUrl}/checkout/failure?${backQs.toString()}`;
+
   if (!hasMercadoPagoCredentials()) {
     const mockPrefId = `TEST-MOCK-${Buffer.from(
       `${rifaId}-${numbers.join("")}-${Date.now()}`
     ).toString("base64").slice(0, 24)}`;
-    const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const successQs = new URLSearchParams({
+      preference_id: mockPrefId,
+      external_reference: externalReference,
+      reserva_id: reservaId ?? "",
+      payment_id: `MOCK-${Date.now()}`,
+      rifa_id: rifaId,
+      numbers: numbersCsv
+    });
     return NextResponse.json(
       {
         ok: true,
@@ -184,8 +202,8 @@ export async function POST(req: Request) {
         message:
           "Mercado Pago credenciales no configuradas. Esta es una preference MOCK para pruebas.",
         testing: true,
-        init_point: `${baseUrl}/checkout/mock-confirm?preference_id=${encodeURIComponent(mockPrefId)}&external_reference=${encodeURIComponent(externalReference)}&reserva_id=${encodeURIComponent(reservaId ?? "")}`,
-        sandbox_init_point: `${baseUrl}/checkout/mock-confirm?preference_id=${encodeURIComponent(mockPrefId)}&external_reference=${encodeURIComponent(externalReference)}&reserva_id=${encodeURIComponent(reservaId ?? "")}`,
+        init_point: `${baseUrl}/checkout/success?${successQs.toString()}`,
+        sandbox_init_point: `${baseUrl}/checkout/success?${successQs.toString()}`,
         preference_id: mockPrefId,
         external_reference: externalReference,
         reserva_id: reservaId,
@@ -198,6 +216,7 @@ export async function POST(req: Request) {
         currency,
         expires_at: expirationDateTo,
         payer: { email: payerEmail, name: payerName, phone: payerPhone },
+        back_urls: { success: successUrl, pending: pendingUrl, failure: failureUrl },
         items
       },
       { status: 201 }
@@ -235,6 +254,11 @@ export async function POST(req: Request) {
           ? { area_code: "01", number: phoneNumber }
           : undefined
       },
+      backUrls: {
+        success: successUrl,
+        pending: pendingUrl,
+        failure: failureUrl
+      },
       expires: true,
       expirationDateFrom: new Date(Date.now()).toISOString(),
       expirationDateTo
@@ -259,7 +283,8 @@ export async function POST(req: Request) {
         platform_fee: platformFee,
         unit_price: unitPrice,
         currency,
-        expires_at: expirationDateTo
+        expires_at: expirationDateTo,
+        back_urls: { success: successUrl, pending: pendingUrl, failure: failureUrl }
       },
       { status: 201 }
     );

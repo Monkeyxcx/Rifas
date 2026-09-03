@@ -521,13 +521,26 @@ export default async function MisRifasParticipandoPage() {
                         )}
                       </div>
                       <div className="flex flex-col gap-2 pt-1">
+                        {(p.pagoStatus === "in_process" || p.pagoStatus === "pending") && (
+                          <Button
+                            asChild
+                            className="w-full !h-10 !bg-gradient-to-r from-brand-gold via-rose-500 to-brand-violet !text-white font-black shadow-cta shadow-rose-500/30"
+                          >
+                            <Link
+                              href={`/checkout/${p.id}?rifa_id=${p.rifa.id}&numbers=${p.numbers.join(",")}`}
+                            >
+                              <CreditCard className="mr-1.5 h-4 w-4" />
+                              Continuar pago
+                            </Link>
+                          </Button>
+                        )}
                         <Button
                           asChild
                           className="w-full !h-10 !bg-gradient-to-r from-brand-cyan to-brand-rose !text-white font-bold shadow-cta shadow-cyan-500/20"
                         >
                           <Link href={`/rifas/${p.rifa.id}`}>
                             <FileCheck2 className="mr-1.5 h-4 w-4" />
-                            Ver ticket oficial
+                            {p.pagoStatus === "approved" ? "Ver ticket oficial" : "Ver rifa"}
                           </Link>
                         </Button>
                         <Button

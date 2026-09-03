@@ -68,7 +68,7 @@ export async function createPreference(input: CreatePreferenceInput) {
       payer: input.payer,
       external_reference: input.externalReference,
       metadata: input.metadata,
-      backUrls: input.backUrls || {
+      backUrls: input.backUrls ?? {
         success: `${baseUrl}/checkout/success`,
         pending: `${baseUrl}/checkout/pending`,
         failure: `${baseUrl}/checkout/failure`
