@@ -17,16 +17,36 @@ function AuthInner() {
   const modeParam = searchParams.get("mode");
   const [mounted, setMounted] = useState(false);
   const [origin, setOrigin] = useState<string>("");
+  const [navigating, setNavigating] = useState(false);
 
   const supabase = createClient();
 
   useEffect(() => {
     setOrigin(typeof window !== "undefined" ? window.location.origin : "");
     setMounted(true);
-    const timeout = setTimeout(() => router.refresh(), 200);
-    return () => clearTimeout(timeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((event, _session) => {
+      if (event === "SIGNED_IN" && navigating === false) {
+        setNavigating(true);
+        setTimeout(() => {
+          router.replace(redirectTo);
+        }, 100);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [mounted, supabase, redirectTo, navigating, router]);
+
+  const handleBack = (e: React.MouseEvent) => {
+    if (typeof window !== "undefined" && window.history.length > 2) {
+      e.preventDefault();
+      window.history.back();
+    }
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50">
@@ -52,7 +72,7 @@ function AuthInner() {
           </Link>
 
           <Button asChild variant="ghost" size="sm">
-            <Link href={redirectTo}>
+            <Link href={redirectTo} onClick={handleBack}>
               <ArrowLeft className="h-4 w-4" />
               Volver
             </Link>
