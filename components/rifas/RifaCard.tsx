@@ -45,8 +45,18 @@ export function RifaCard({ rifa, stats, className }: RifaCardProps) {
     100,
     Math.round((sold / Math.max(1, total_numbers)) * 100)
   );
+
+  function deterministicNumberFromId(str: string, max: number): number {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = (h << 5) - h + str.charCodeAt(i);
+      h |= 0;
+    }
+    const n = Math.abs(h) % Math.max(1, max);
+    return n;
+  }
   const sampleWinningNumber = padRaffleNumber(
-    Math.floor(Math.random() * Math.max(10, total_numbers))
+    deterministicNumberFromId(id, Math.max(10, total_numbers))
   );
 
   const endsAtDisplay = ends_at ? formatRelativeTime(ends_at) : null;
