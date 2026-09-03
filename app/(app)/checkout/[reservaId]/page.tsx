@@ -15,9 +15,8 @@ import {
   Zap
 } from "lucide-react";
 import CountdownTimer from "@/components/checkout/CountdownTimer";
-import { MOCK_RIFAS } from "@/components/rifas/MOCK_RIFAS";
+import CheckoutPaymentButton from "@/components/checkout/CheckoutPaymentButton";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -26,38 +25,216 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/utils";
-import type { Rifa } from "@/lib/types";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import type { Rifa, RifaStatus } from "@/lib/types";
 
 export const revalidate = 0;
 
+const RIFA_CHECKOUT_SELECT = `
+  id, creator_id, title, slug, description, prize_name, prize_image_url,
+  prize_value, is_solidarity, cause_name, cause_description, cause_target,
+  number_price, total_numbers, available_numbers, status, ends_at, draw_date,
+  created_at, updated_at,
+  creator:profiles!rifas_creator_id_fkey(id, full_name, avatar_url, country)
+`;
+
+const PROFILE_SELECT = `id, full_name, avatar_url, country, phone, wallet_balance, created_at`;
+
+type RifaCheckoutJoined = {
+  id: string;
+  creator_id: string;
+  title: string;
+  slug: string | null;
+  description: string | null;
+  prize_name: string;
+  prize_image_url: string | null;
+  prize_value: number;
+  is_solidarity: boolean;
+  cause_name: string | null;
+  cause_description: string | null;
+  cause_target: number;
+  number_price: number;
+  total_numbers: number;
+  available_numbers: number;
+  status: RifaStatus;
+  ends_at: string | null;
+  draw_date: string | null;
+  created_at: string;
+  updated_at: string;
+  creator: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+    country: string | null;
+  } | null;
+};
+
+type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  country: string | null;
+  phone: string | null;
+  wallet_balance: number;
+  created_at: string;
+};
+
+const UUID_RE = /^[0-9a-fA-F-]{36}$/;
+const NUM_RE = /^\d{2}$/;
+
+const currencyMap: Record<string, string> = {
+  Argentina: "ARS",
+  México: "MXN",
+  Chile: "CLP",
+  Colombia: "COP",
+  Perú: "PEN",
+  Venezuela: "VES"
+};
+
+function mapRifaRow(r: RifaCheckoutJoined): Rifa {
+  return {
+    id: r.id,
+    creator_id: r.creator_id,
+    title: r.title,
+    slug: r.slug,
+    description: r.description,
+    prize_name: r.prize_name,
+    prize_image_url: r.prize_image_url,
+    prize_value: r.prize_value,
+    is_solidarity: r.is_solidarity,
+    cause_name: r.cause_name,
+    cause_description: r.cause_description,
+    cause_target: r.cause_target,
+    number_price: r.number_price,
+    total_numbers: r.total_numbers,
+    available_numbers: r.available_numbers,
+    status: r.status as RifaStatus,
+    ends_at: r.ends_at,
+    draw_date: r.draw_date,
+    draw_instructions: null,
+    banner_ad_config: null,
+    metadata: null,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    creator: r.creator
+      ? {
+          id: r.creator.id,
+          full_name: r.creator.full_name ?? null,
+          avatar_url: r.creator.avatar_url ?? null,
+          country: r.creator.country ?? null
+        }
+      : null
+  };
+}
+
 export default async function CheckoutPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ reservaId: string }>;
+  searchParams: Promise<{ rifa_id?: string; numbers?: string }>;
 }) {
   const { reservaId } = await params;
+  const { rifa_id, numbers } = await searchParams;
 
-  const DEFAULT_RIFA_ID = "00000000-0000-0000-0000-000000000001";
-  const DEFAULT_NUMBERS = ["07", "13", "23", "41", "55", "72"];
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: uErr
+  } = await supabase.auth.getUser();
+  if (uErr || !user) {
+    const qs = new URLSearchParams();
+    if (rifa_id) qs.set("rifa_id", rifa_id);
+    if (numbers) qs.set("numbers", numbers);
+    const qsStr = qs.toString();
+    const redirectTo = `/checkout/${reservaId}${qsStr ? `?${qsStr}` : ""}`;
+    redirect(`/auth?redirectTo=${encodeURIComponent(redirectTo)}`);
+  }
 
-  const rifaMatch: { rifa: Rifa } =
-    MOCK_RIFAS.find((r) => reservaId.includes(r.rifa.id.slice(-4))) ??
-    MOCK_RIFAS.find((r) => r.rifa.id === DEFAULT_RIFA_ID) ??
-    MOCK_RIFAS[0];
+  if (!rifa_id || !UUID_RE.test(rifa_id)) {
+    redirect("/mis-rifas/participando?error=rifa_invalida");
+  }
+  const numbersArr = (numbers ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .filter((n) => NUM_RE.test(n));
+  if (!numbersArr.length) {
+    redirect("/mis-rifas/participando?error=sin_numeros");
+  }
 
-  const rifa = rifaMatch.rifa;
-  const numbers =
-    reservaId === "demo-solidaria-002"
-      ? ["03", "08", "17", "29", "44", "51", "68", "89"]
-      : DEFAULT_NUMBERS;
+  const { data: rifaRow, error: rifaErr } = await supabase
+    .from("rifas")
+    .select(RIFA_CHECKOUT_SELECT)
+    .eq("id", rifa_id)
+    .single();
+
+  if (rifaErr || !rifaRow) {
+    console.error("[checkout] rifa lookup failed", rifaErr);
+    redirect("/mis-rifas/participando?error=rifa_no_existe");
+  }
+  const joined = rifaRow as unknown as RifaCheckoutJoined;
+  const rifa = mapRifaRow(joined);
+
+  const { data: reservasRows, error: reservasErr } = await supabase
+    .from("reservas")
+    .select("id, rifa_id, user_id, number, status, expires_at, reserved_session_key, created_at, updated_at")
+    .eq("rifa_id", rifa_id)
+    .in("number", numbersArr)
+    .in("status", ["reserved", "paid"])
+    .order("created_at", { ascending: false });
+
+  if (reservasErr) {
+    console.error("[checkout] reservas lookup failed", reservasErr);
+    redirect("/mis-rifas/participando?error=reserva_error");
+  }
+
+  const reservas = (reservasRows ?? []) as Array<{
+    id: string;
+    rifa_id: string;
+    user_id: string;
+    number: string;
+    status: string;
+    expires_at: string;
+    created_at: string;
+  }>;
+
+  const foundByNumber = new Map(reservas.map((r) => [r.number, r]));
+  for (const n of numbersArr) {
+    const r = foundByNumber.get(n);
+    if (!r) {
+      redirect(`/mis-rifas/participando?error=numero_no_reservado&n=${n}`);
+    }
+    if (r.user_id !== user.id) {
+      redirect(`/mis-rifas/participando?error=numero_no_es_tuyo&n=${n}`);
+    }
+    if (r.status !== "reserved") {
+      redirect(`/mis-rifas/participando?error=numero_ya_pagado&n=${n}`);
+    }
+  }
+
+  const minExpireIso = reservas.reduce(
+    (acc, r) => (!acc || r.expires_at < acc ? r.expires_at : acc),
+    null as string | null
+  );
+
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select(PROFILE_SELECT)
+    .eq("id", user.id)
+    .maybeSingle();
+  const profile = profileRow as unknown as ProfileRow | null;
+
+  const payerEmail = user.email ?? "";
+  const payerName = profile?.full_name ?? user.user_metadata?.full_name ?? "";
+  const payerPhone = profile?.phone ?? user.user_metadata?.phone ?? "";
 
   const unitPrice = rifa.number_price;
-  const subtotal = numbers.length * unitPrice;
+  const subtotal = numbersArr.length * unitPrice;
   const platformFee = Math.round(subtotal * 0.03);
   const total = subtotal + platformFee;
   const soldPercentage = rifa.available_numbers
@@ -66,18 +243,10 @@ export default async function CheckoutPage({
       )
     : 57;
 
-  const currencyMap: Record<string, string> = {
-    Argentina: "ARS",
-    México: "MXN",
-    Chile: "CLP",
-    Colombia: "COP",
-    Perú: "PEN",
-    Venezuela: "VES"
-  };
   const country = rifa.creator?.country ?? "Colombia";
   const currency = currencyMap[country] ?? "COP";
 
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  const expiresAt = minExpireIso ?? new Date(Date.now() + 15 * 60 * 1000).toISOString();
   const endsDate = rifa.ends_at ? new Date(rifa.ends_at) : null;
   const drawDate = rifa.draw_date ? new Date(rifa.draw_date) : null;
   const dateOpts: Intl.DateTimeFormatOptions = {
@@ -92,12 +261,12 @@ export default async function CheckoutPage({
   const prettyRifaEnds = endsDate ? endsDate.toLocaleDateString("es-ES", dateOpts) : "—";
   const prettyDrawDate = drawDate ? drawDate.toLocaleDateString("es-ES", dateOpts) : "—";
 
+  const isDemo = process.env.NODE_ENV !== "production";
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
       <div className="container mx-auto max-w-7xl px-4 py-8 lg:py-10">
-        {/* ============================================================= */}
-        {/* BREADCRUMB + HEADER                                           */}
-        {/* ============================================================= */}
+        {/* HEADER */}
         <div className="mb-8">
           <div className="mb-4 flex items-center gap-2 text-xs font-medium text-slate-500">
             <Link
@@ -119,10 +288,10 @@ export default async function CheckoutPage({
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="solidarity" className="!bg-emerald-100 !text-emerald-700 !border !border-emerald-200">
                   <Ticket className="mr-1 h-3 w-3" />
-                  Reserva confirmada · {numbers.length} número{numbers.length === 1 ? "" : "s"}
+                  Reserva confirmada · {numbersArr.length} número{numbersArr.length === 1 ? "" : "s"}
                 </Badge>
                 <Badge variant="new" className="!bg-brand-gold/15 !text-amber-700 !border !border-brand-gold/30">
                   <Sparkles className="mr-1 h-3 w-3" />
@@ -150,22 +319,16 @@ export default async function CheckoutPage({
           </div>
         </div>
 
-        {/* ============================================================= */}
-        {/* COUNTDOWN STICKY                                              */}
-        {/* ============================================================= */}
+        {/* COUNTDOWN STICKY */}
         <div className="sticky top-[76px] z-40 mb-6">
           <CountdownTimer expiresAt={expiresAt} />
         </div>
 
-        {/* ============================================================= */}
-        {/* GRID 2 COLS                                                   */}
-        {/* ============================================================= */}
+        {/* GRID 2 COLS */}
         <div className="grid gap-6 lg:grid-cols-5">
-          {/* --------------------------------------------------------- */}
-          {/* COLUMNA IZQUIERDA · RESUMEN                               */}
-          {/* --------------------------------------------------------- */}
+          {/* COLUMNA IZQUIERDA · RESUMEN */}
           <div className="space-y-6 lg:col-span-3">
-            {/* CARD 1 · INFO RIFA                               */}
+            {/* CARD 1 · INFO RIFA */}
             <Card className="overflow-hidden border-slate-200 shadow-sm">
               <div
                 className={
@@ -243,13 +406,12 @@ export default async function CheckoutPage({
                       {rifa.total_numbers - rifa.available_numbers} / {rifa.total_numbers}
                     </span>
                   </div>
-                  <Progress value={soldPercentage} className="h-2">
-                  </Progress>
+                  <Progress value={soldPercentage} className="h-2" />
                 </div>
 
                 <Separator />
 
-                {/* NÚMEROS SELECCIONADOS                      */}
+                {/* NÚMEROS SELECCIONADOS */}
                 <div>
                   <div className="mb-3 flex items-center justify-between">
                     <h4 className="flex items-center gap-2 text-sm font-bold text-slate-900">
@@ -257,12 +419,12 @@ export default async function CheckoutPage({
                       Tus números de la suerte
                     </h4>
                     <Badge variant="secondary" className="font-numbers tabular-nums">
-                      {numbers.length} reservados
+                      {numbersArr.length} reservados
                     </Badge>
                   </div>
 
                   <div className="grid grid-cols-5 gap-2.5 sm:grid-cols-6 md:grid-cols-8">
-                    {numbers.map((n) => (
+                    {numbersArr.map((n) => (
                       <div
                         key={n}
                         className="group relative aspect-square rounded-xl border-2 border-brand-rose/60 bg-gradient-to-br from-brand-rose via-brand-violet to-brand-violet text-center shadow-cta shadow-brand-rose/20 transition active:scale-95"
@@ -277,7 +439,7 @@ export default async function CheckoutPage({
 
                 <Separator />
 
-                {/* DESGLose PRECIO                              */}
+                {/* DESGLose PRECIO */}
                 <div>
                   <h4 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
                     <FileCheck2 className="h-4 w-4 text-brand-cyan" />
@@ -286,10 +448,10 @@ export default async function CheckoutPage({
                   <div className="space-y-2.5 rounded-2xl bg-slate-50 p-4 text-sm">
                     <div className="flex items-center justify-between text-slate-600">
                       <span>
-                        Precio por número · <span className="font-semibold text-slate-700">{numbers.length}</span>
+                        Precio por número · <span className="font-semibold text-slate-700">{numbersArr.length}</span>
                       </span>
                       <span className="font-numbers tabular-nums">
-                        {formatCurrency(unitPrice, currency)} × {numbers.length}
+                        {formatCurrency(unitPrice, currency)} × {numbersArr.length}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-slate-600">
@@ -317,7 +479,7 @@ export default async function CheckoutPage({
                   </div>
                 </div>
 
-                {/* FECHAS IMPORTANTES                           */}
+                {/* FECHAS IMPORTANTES */}
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="rounded-2xl border border-brand-rose/20 bg-gradient-to-br from-brand-rose/5 via-white to-brand-rose/5 p-4">
                     <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-rose">
@@ -335,7 +497,7 @@ export default async function CheckoutPage({
               </CardContent>
             </Card>
 
-            {/* CARD 2 · BENEFICIOS / PASOS                */}
+            {/* CARD 2 · BENEFICIOS / PASOS */}
             <Card className="border-slate-200 shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-display text-lg">
@@ -387,12 +549,10 @@ export default async function CheckoutPage({
             </Card>
           </div>
 
-          {/* --------------------------------------------------------- */}
-          {/* COLUMNA DERECHA · PAGO sticky                             */}
-          {/* --------------------------------------------------------- */}
+          {/* COLUMNA DERECHA · PAGO sticky */}
           <div className="lg:col-span-2">
             <div className="sticky top-[156px] space-y-5">
-              {/* CARD PAGO SEGURO                               */}
+              {/* CARD PAGO SEGURO */}
               <Card className="overflow-hidden border-slate-200 shadow-lg">
                 <div className="relative bg-gradient-to-br from-brand-gold via-rose-500 to-brand-violet p-5 text-white">
                   <div
@@ -418,41 +578,33 @@ export default async function CheckoutPage({
                 </div>
 
                 <CardContent className="space-y-5 pt-6">
-                  {/* USUARIO                             */}
+                  {/* USUARIO (solo lectura con datos reales de perfil) */}
                   <div className="space-y-3">
                     <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                       <CreditCard className="h-4 w-4 text-brand-violet" />
                       Datos del comprador
                     </h4>
-                    <div className="grid gap-3">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="email">Correo electrónico</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          defaultValue="comprador@demo.rifascenter.com"
-                          className="h-11"
-                        />
+                    <div className="space-y-2.5 rounded-2xl bg-slate-50 p-3.5 text-xs text-slate-600">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-semibold text-slate-500 w-24 shrink-0">Correo</span>
+                        <span className="font-semibold text-slate-800 text-right break-all">{payerEmail || "—"}</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="name">Nombre</Label>
-                          <Input id="name" defaultValue="Comprador Demo" className="h-11" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="phone" className="flex items-center gap-1.5">
-                            <Smartphone className="h-3 w-3" />
-                            Teléfono
-                          </Label>
-                          <Input id="phone" defaultValue="+57 300 123 4567" className="h-11" />
-                        </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-semibold text-slate-500 w-24 shrink-0">Nombre</span>
+                        <span className="font-semibold text-slate-800 text-right">{payerName || "Comprador RifasCenter"}</span>
+                      </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-semibold text-slate-500 w-24 shrink-0 flex items-center gap-1">
+                          <Smartphone className="h-3 w-3" /> Teléfono
+                        </span>
+                        <span className="font-semibold text-slate-800 text-right">{payerPhone || "Sin registrar"}</span>
                       </div>
                     </div>
                   </div>
 
                   <Separator />
 
-                  {/* MEDIOS PAGO                          */}
+                  {/* MEDIOS PAGO */}
                   <div className="space-y-3">
                     <h4 className="text-sm font-bold text-slate-900">Medios de pago aceptados</h4>
                     <div className="grid grid-cols-6 gap-2">
@@ -482,11 +634,11 @@ export default async function CheckoutPage({
 
                   <Separator />
 
-                  {/* RESUMEN TOTAL                       */}
+                  {/* RESUMEN TOTAL */}
                   <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
                     <div className="space-y-1.5 text-sm">
                       <div className="flex justify-between text-slate-500">
-                        <span>{numbers.length} × {formatCurrency(unitPrice, currency)}</span>
+                        <span>{numbersArr.length} × {formatCurrency(unitPrice, currency)}</span>
                         <span className="font-numbers tabular-nums">{formatCurrency(subtotal, currency)}</span>
                       </div>
                       <div className="flex justify-between text-slate-500">
@@ -508,24 +660,22 @@ export default async function CheckoutPage({
                     </div>
                   </div>
 
-                  <Button
-                    size="lg"
-                    className="group relative h-14 w-full !bg-gradient-to-r from-brand-gold via-rose-500 to-brand-violet text-base font-black text-white shadow-cta shadow-rose-500/30 transition active:scale-[0.98]"
-                  >
-                    <span className="absolute inset-0 rounded-xl bg-white/10 opacity-0 transition group-hover:opacity-100" />
-                    <span className="relative flex items-center justify-center gap-2.5">
-                      <CreditCard className="h-5 w-5" strokeWidth={2.3} />
-                      💳 Pagar con Mercado Pago ·{" "}
-                      <span className="font-numbers tabular-nums">
-                        {formatCurrency(total, currency)}
-                      </span>
-                    </span>
-                  </Button>
+                  <CheckoutPaymentButton
+                    reservaId={reservaId}
+                    rifaId={rifa_id}
+                    numbers={numbersArr}
+                    total={total}
+                    currency={currency}
+                    payerEmail={payerEmail}
+                    payerName={payerName}
+                    payerPhone={payerPhone}
+                  />
 
-                  {/* AMBIENTE DEMO badge                   */}
-                  <div className="rounded-xl border border-dashed border-brand-gold/60 bg-amber-50/70 px-3.5 py-2.5 text-center text-[11px] font-bold text-amber-700">
-                    🧪 MODO DEMO · Entorno Sandbox · Sin cargos reales · Prueba flujo completo
-                  </div>
+                  {isDemo && (
+                    <div className="rounded-xl border border-dashed border-brand-gold/60 bg-amber-50/70 px-3.5 py-2.5 text-center text-[11px] font-bold text-amber-700">
+                      🧪 MODO DEMO · Entorno Sandbox · Sin cargos reales · Prueba flujo completo
+                    </div>
+                  )}
                 </CardContent>
 
                 <CardFooter className="grid gap-2 border-t border-slate-100 bg-slate-50/80 px-6 py-4 text-[11px] font-semibold text-slate-500">
@@ -546,7 +696,7 @@ export default async function CheckoutPage({
                 </CardFooter>
               </Card>
 
-              {/* CARD ANTI DOBLE VENTA (recuerda)          */}
+              {/* CARD ANTI DOBLE VENTA */}
               <Card className="border-dashed border-2 border-brand-cyan/40 bg-cyan-50/40 shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 font-display text-base text-cyan-900">
