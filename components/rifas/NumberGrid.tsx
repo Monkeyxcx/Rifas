@@ -53,6 +53,7 @@ export default function NumberGrid({
 
   function toggle(num: string) {
     if (computedSold.has(num)) return;
+    if (mine.has(num)) return;
     const next = new Set(selected);
     if (next.has(num)) {
       next.delete(num);
@@ -159,13 +160,22 @@ export default function NumberGrid({
       <div className="grid grid-cols-10 gap-1.5 md:gap-2 text-center font-numbers tabular-nums">
         {allNumbers.map((n) => {
           const st = stateOf(n);
-          const disabled = st === "sold";
+          const disabled = st === "sold" || st === "mine";
           return (
             <button
               key={n}
               type="button"
               onClick={() => toggle(n)}
               disabled={disabled}
+              aria-label={
+                st === "sold"
+                  ? `Número ${n} vendido`
+                  : st === "mine"
+                    ? `Número ${n} ya reservado por ti`
+                    : st === "selected"
+                      ? `Número ${n} seleccionado`
+                      : `Seleccionar número ${n}`
+              }
               className={cn(
                 "relative h-10 md:h-11 w-full rounded-lg text-sm font-semibold transition-all duration-150 select-none",
                 st === "available" &&
@@ -175,7 +185,7 @@ export default function NumberGrid({
                 st === "sold" &&
                   "bg-slate-100 border border-slate-200 text-slate-300 line-through cursor-not-allowed opacity-70",
                 st === "mine" &&
-                  "bg-brand-cyan/10 border-2 border-brand-cyan text-brand-cyan-700 font-bold"
+                  "bg-brand-cyan/10 border-2 border-brand-cyan text-brand-cyan-700 font-bold cursor-default"
               )}
             >
               {n}

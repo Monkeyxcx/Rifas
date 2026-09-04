@@ -118,7 +118,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
           country: d.country ?? prev.country
         }));
         toast.success("Datos cargados. Ya puedes editar los campos.");
-      } catch (err) {
+      } catch {
         if (!cancelled) toast.error("Error cargando la rifa. Intenta de nuevo.");
       } finally {
         if (!cancelled) setLoadingData(false);
@@ -202,12 +202,15 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
         );
       case "numeros":
         return form.number_price >= 1_000 && form.total_numbers >= 10;
-      case "fechas":
-        return (
-          !!form.ends_at_date &&
-          !!form.draw_date_date &&
-          form.draw_instructions.trim().length >= 10
-        );
+      case "fechas": {
+        const endsOk = !!form.ends_at_date;
+        const drawOk = !!form.draw_date_date;
+        const instrOk = form.draw_instructions.trim().length >= 10;
+        if (!(endsOk && drawOk && instrOk)) return false;
+        const ends = new Date(form.ends_at_date + "T20:00:00").getTime();
+        const draw = new Date(form.draw_date_date + "T19:00:00").getTime();
+        return draw > ends;
+      }
     }
   }
 
@@ -404,6 +407,9 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                   </div>
                   <button
                     type="button"
+                    role="switch"
+                    aria-checked={form.is_solidarity}
+                    aria-label={form.is_solidarity ? "Desactivar rifa solidaria" : "Activar rifa solidaria"}
                     onClick={() => update("is_solidarity", !form.is_solidarity)}
                     className={cn(
                       "relative inline-flex h-9 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-rose focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
@@ -413,6 +419,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                     )}
                   >
                     <span
+                      aria-hidden
                       className={cn(
                         "pointer-events-none block h-8 w-8 rounded-full bg-white shadow-lg ring-0 transition-transform",
                         form.is_solidarity ? "translate-x-7" : "translate-x-0"
@@ -455,7 +462,8 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                       onChange={(e) => update("prize_image_url", e.target.value)}
                     />
                     {form.prize_image_url ? (
-                      <div className="flex aspect-video rounded-xl border border-slate-200 bg-white overflow-hidden">
+                      <div className="flex aspect-video rounded-xl border border-slate-200 bg-white overflow-hidden relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={form.prize_image_url}
                           alt="Vista previa premio"
@@ -805,19 +813,30 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
               Cancelar
             </Button>
             {stepKey === "fechas" ? (
-              <Button
-                type="submit"
-                className="!bg-gradient-to-r from-brand-rose to-brand-violet shadow-cta active:scale-[0.98]"
-                disabled={!canContinue() || submitting || loadingData}
-              >
-                {submitting
-                  ? editingId
-                    ? "Guardando…"
-                    : "Creando…"
-                  : editingId
-                    ? "✓ Guardar cambios"
-                    : "✓ Crear rifa"}
-              </Button>
+              <div className="flex flex-col items-end gap-2">
+                {stepKey === "fechas" &&
+                  form.ends_at_date &&
+                  form.draw_date_date &&
+                  new Date(form.draw_date_date + "T19:00:00").getTime() <=
+                    new Date(form.ends_at_date + "T20:00:00").getTime() && (
+                    <div className="text-xs font-semibold text-destructive bg-destructive/10 border border-destructive/20 rounded-xl px-3 py-2 max-w-sm">
+                      ⚠ La fecha del sorteo debe ser posterior al cierre de ventas.
+                    </div>
+                  )}
+                <Button
+                  type="submit"
+                  className="!bg-gradient-to-r from-brand-rose to-brand-violet shadow-cta active:scale-[0.98]"
+                  disabled={!canContinue() || submitting || loadingData}
+                >
+                  {submitting
+                    ? editingId
+                      ? "Guardando…"
+                      : "Creando…"
+                    : editingId
+                      ? "✓ Guardar cambios"
+                      : "✓ Crear rifa"}
+                </Button>
+              </div>
             ) : (
               <Button
                 type="submit"
@@ -844,14 +863,17 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
             )}
           >
             {form.prize_image_url ? (
-              <img
-                src={form.prize_image_url}
-                alt="Premio"
-                className="absolute inset-0 h-full w-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
+              <div className="absolute inset-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={form.prize_image_url}
+                  alt="Premio"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </div>
             ) : null}
             <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] [background-size:18px_18px]" />
             {!form.prize_image_url && (
