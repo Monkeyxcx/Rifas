@@ -339,7 +339,7 @@ export default async function MisRifasCreadasPage() {
                     draw_date: rifa.draw_date
                   }}
                 />
-                <div className="absolute bottom-3 right-3 z-10 flex translate-y-1 items-center gap-1.5 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">
+                <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 transition [transform:translateZ(0)] sm:translate-y-1 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
                   <Button
                     size="sm"
                     variant="outline"
@@ -348,7 +348,8 @@ export default async function MisRifasCreadasPage() {
                   >
                     <Link href={`/rifas/${rifa.id}`}>
                       <Eye className="mr-1 h-3.5 w-3.5" />
-                      Preview
+                      <span className="sm:hidden">Preview</span>
+                      <span className="hidden sm:inline">Preview</span>
                     </Link>
                   </Button>
                   <Button
@@ -359,7 +360,8 @@ export default async function MisRifasCreadasPage() {
                   >
                     <Link href={`/rifas/crear?editar=${rifa.id}`}>
                       <Settings2 className="mr-1 h-3.5 w-3.5" />
-                      Editar
+                      <span className="sm:hidden">Editar</span>
+                      <span className="hidden sm:inline">Editar</span>
                     </Link>
                   </Button>
                   <Button
@@ -368,7 +370,8 @@ export default async function MisRifasCreadasPage() {
                     className="!bg-white !h-9 !border-brand-rose/40 !text-brand-rose shadow"
                   >
                     <Share2 className="mr-1 h-3.5 w-3.5" />
-                    Compartir
+                    <span className="sm:hidden">Compartir</span>
+                    <span className="hidden sm:inline">Compartir</span>
                   </Button>
                 </div>
                 {status === "closed" && (
