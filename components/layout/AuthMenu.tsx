@@ -22,8 +22,94 @@ import {
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { cn, formatCurrency } from "@/lib/utils";
 
-export function AuthMenu() {
+interface Props {
+  verticalStack?: boolean;
+}
+
+export function AuthMenu({ verticalStack = false }: Props) {
   const { user, profile, loading, signOut } = useAuthSession();
+
+  if (verticalStack) {
+    return (
+      <div className="space-y-2 w-full">
+        {loading ? (
+          <Button variant="outline" size="sm" disabled className="w-full justify-start">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Cargando cuenta…
+          </Button>
+        ) : !user ? (
+          <Button asChild variant="gradient" size="sm" className="w-full justify-start">
+            <Link href="/auth">
+              <UserRound className="h-4 w-4" />
+              Iniciar sesión / Registrarme
+            </Link>
+          </Button>
+        ) : (
+          <>
+            <div className="rounded-2xl bg-gradient-cta text-white p-4 flex items-center gap-3 shadow-cta">
+              <span
+                aria-hidden
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border-2 border-white/40 text-base font-black"
+              >
+                {(
+                  (profile?.display_name ?? undefined)
+                    ?.split(" ")
+                    .map((s: string) => s[0])
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase() ??
+                  user.email?.slice(0, 2).toUpperCase() ??
+                  "R"
+                )}
+              </span>
+              <div className="min-w-0">
+                <div className="font-display font-black text-base truncate">
+                  {profile?.display_name ??
+                    (user.email ? user.email.split("@")[0] : "Mi cuenta")}
+                </div>
+                <div className="text-xs text-white/80 truncate break-all">
+                  {user.email}
+                </div>
+              </div>
+            </div>
+            <Button asChild variant="outline" className="w-full justify-start">
+              <Link href="/perfil">
+                <UserRound className="h-4 w-4 text-brand-rose" />
+                Mi perfil
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full justify-start">
+              <Link href="/mis-rifas/participando">
+                <Ticket className="h-4 w-4 text-brand-cyan" />
+                Mis números
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full justify-start">
+              <Link href="/mis-rifas/creadas">
+                <Gift className="h-4 w-4 text-brand-violet" />
+                Rifas creadas
+              </Link>
+            </Button>
+            <Button asChild variant="gradient" className="w-full justify-start">
+              <Link href="/rifas/crear">
+                <Plus className="h-4 w-4" />
+                Crear rifa nueva
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-slate-600 hover:text-destructive hover:bg-destructive/10"
+              onClick={signOut}
+            >
+              <LogOut className="h-4 w-4" />
+              Cerrar sesión
+            </Button>
+          </>
+        )}
+      </div>
+    );
+  }
 
   if (loading) {
     return (
