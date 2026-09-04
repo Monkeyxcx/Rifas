@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ interface CreatorFormState {
   title: string;
   description: string;
   prize_name: string;
+  prize_image_url: string;
   prize_value: number;
   is_solidarity: boolean;
   cause_name: string;
@@ -46,6 +47,7 @@ const DEFAULT: CreatorFormState = {
   title: "",
   description: "",
   prize_name: "",
+  prize_image_url: "",
   prize_value: 500_000,
   is_solidarity: false,
   cause_name: "",
@@ -68,7 +70,7 @@ function isoDateInput(offsetDays = 7) {
   return `${y}-${m}-${day}`;
 }
 
-export default function CreatorForm() {
+export default function CreatorForm({ editingId }: { editingId?: string | null }) {
   const router = useRouter();
   const [stepKey, setStepKey] = useState<StepKey>("datos");
   const [form, setForm] = useState<CreatorFormState>({
@@ -77,6 +79,56 @@ export default function CreatorForm() {
     draw_date_date: isoDateInput(15)
   });
   const [submitting, setSubmitting] = useState(false);
+  const [loadingData, setLoadingData] = useState<boolean>(Boolean(editingId));
+
+  useEffect(() => {
+    if (!editingId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoadingData(true);
+        const r = await fetch(`/api/rifas/${editingId}`, { credentials: "include" });
+        const json = await r.json().catch(() => ({})) as Record<string, unknown>;
+        if (cancelled) return;
+        if (!r.ok || !json.ok) {
+          toast.error(
+            (json as { error?: string }).error ||
+              "No se pudo cargar la rifa para editar."
+          );
+          router.replace("/mis-rifas/creadas");
+          return;
+        }
+        const d = (json as { rifa?: CreatorFormState & { id: string } }).rifa!;
+        setForm((prev) => ({
+          ...prev,
+          title: d.title ?? prev.title,
+          description: d.description ?? prev.description,
+          prize_name: d.prize_name ?? prev.prize_name,
+          prize_image_url: d.prize_image_url ?? prev.prize_image_url,
+          prize_value: Number(d.prize_value ?? prev.prize_value),
+          is_solidarity: Boolean(d.is_solidarity),
+          cause_name: d.cause_name ?? prev.cause_name,
+          cause_description: d.cause_description ?? prev.cause_description,
+          cause_target: Number(d.cause_target ?? 0),
+          total_numbers: Number(d.total_numbers ?? prev.total_numbers),
+          number_price: Number(d.number_price ?? prev.number_price),
+          ends_at_date: d.ends_at_date ?? prev.ends_at_date,
+          draw_date_date: d.draw_date_date ?? prev.draw_date_date,
+          draw_instructions: d.draw_instructions ?? prev.draw_instructions,
+          country: d.country ?? prev.country
+        }));
+        toast.success("Datos cargados. Ya puedes editar los campos.");
+      } catch (err) {
+        if (!cancelled) toast.error("Error cargando la rifa. Intenta de nuevo.");
+      } finally {
+        if (!cancelled) setLoadingData(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId]);
 
   const projected = useMemo(() => {
     const total = Math.max(10, Math.min(100, form.total_numbers));
@@ -86,13 +138,13 @@ export default function CreatorForm() {
     const ends_at = form.ends_at_date ? new Date(form.ends_at_date + "T20:00:00").toISOString() : null;
     const draw_date = form.draw_date_date ? new Date(form.draw_date_date + "T19:00:00").toISOString() : null;
     const mock: Rifa = {
-      id: "preview",
+      id: editingId || "preview",
       creator_id: "me",
       title: form.title || "Mi rifa (preview)",
       slug: null,
       description: form.description || null,
       prize_name: form.prize_name || "Premio a sortear",
-      prize_image_url: null,
+      prize_image_url: form.prize_image_url || null,
       prize_value: form.prize_value,
       is_solidarity: form.is_solidarity,
       cause_name: form.is_solidarity ? form.cause_name || null : null,
@@ -117,7 +169,7 @@ export default function CreatorForm() {
       }
     };
     return { mock, gross, numbers, total, soldSample };
-  }, [form]);
+  }, [form, editingId]);
 
   function update<K extends keyof CreatorFormState>(key: K, value: CreatorFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -169,17 +221,70 @@ export default function CreatorForm() {
       goNext();
       return;
     }
+    if (loadingData) {
+      toast.error("Cargando datos para editar, espera un momento.");
+      return;
+    }
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 900));
-    toast.success(
-      "¡Rifa creada en modo borrador (mock)! Cuando conectes Supabase se guardará de verdad."
-    );
-    setSubmitting(false);
-    router.push("/mis-rifas/creadas");
+    try {
+      const payload = {
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        prize_name: form.prize_name.trim(),
+        prize_image_url: form.prize_image_url.trim() || undefined,
+        prize_value: Number(form.prize_value),
+        is_solidarity: Boolean(form.is_solidarity),
+        cause_name: form.cause_name.trim() || undefined,
+        cause_description: form.cause_description.trim() || undefined,
+        cause_target: Number(form.cause_target ?? 0),
+        number_price: Number(form.number_price),
+        ends_at: form.ends_at_date,
+        draw_date: form.draw_date_date,
+        draw_instructions: form.draw_instructions.trim(),
+        country: form.country.trim()
+      };
+      const endpoint = editingId ? `/api/rifas/${editingId}` : "/api/rifas";
+      const method = editingId ? "PATCH" : "POST";
+      const isEditing = Boolean(editingId);
+      const body: Record<string, unknown> = { ...payload };
+      if (!isEditing) {
+        body.total_numbers = Number(form.total_numbers);
+      }
+      const r = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body)
+      });
+      const json = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string; rifa_id?: string; rifa?: { id: string } };
+      if (!r.ok || !json.ok) {
+        toast.error(json.error || `Error al ${isEditing ? "actualizar" : "crear"} la rifa.`);
+        setSubmitting(false);
+        return;
+      }
+      const rid = json.rifa_id ?? json.rifa?.id;
+      toast.success(isEditing ? "¡Rifa actualizada correctamente! 🎉" : "¡Rifa creada exitosamente! 🎉");
+      setTimeout(() => {
+        router.push(isEditing ? `/rifas/${rid}` : "/mis-rifas/creadas");
+      }, 600);
+    } catch (err) {
+      toast.error("Ocurrió un error inesperado al guardar la rifa.");
+      console.error("[CreatorForm submit error]", err);
+    } finally {
+      // Do NOT setSubmitting(false) before redirect so user sees state "Creando..."
+    }
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-8 lg:grid-cols-5">
+    <form onSubmit={onSubmit} className="grid gap-8 lg:grid-cols-5 relative">
+      {loadingData && (
+        <div className="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-white/70 backdrop-blur-[2px] rounded-2xl">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-rose border-t-transparent" />
+            <p className="text-sm font-semibold text-slate-700">Cargando datos de la rifa…</p>
+          </div>
+        </div>
+      )}
       <div className="lg:col-span-3 space-y-6">
         <Card className="border border-slate-200/70 shadow-none">
           <CardContent className="p-5">
@@ -342,12 +447,29 @@ export default function CreatorForm() {
                     <div className="text-xs text-slate-400">Mínimo $ 50.000</div>
                   </div>
                   <div className="space-y-2">
-                    <Label>
-                      Imagen del premio (proximamente upload Supabase Storage)
-                    </Label>
-                    <div className="flex aspect-video rounded-xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-brand-rose/5 via-white to-brand-violet/5 place-items-center grid text-slate-400 text-sm">
-                      📷 Subir imagen del premio
-                    </div>
+                    <Label>URL imagen del premio</Label>
+                    <Input
+                      type="url"
+                      placeholder="https://tudominio.com/foto-premio.jpg"
+                      value={form.prize_image_url}
+                      onChange={(e) => update("prize_image_url", e.target.value)}
+                    />
+                    {form.prize_image_url ? (
+                      <div className="flex aspect-video rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        <img
+                          src={form.prize_image_url}
+                          alt="Vista previa premio"
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex aspect-video rounded-xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-brand-rose/5 via-white to-brand-violet/5 place-items-center grid text-slate-400 text-sm">
+                        📷 Pega el enlace de la imagen del premio (proximamente upload)
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -669,7 +791,7 @@ export default function CreatorForm() {
             type="button"
             variant="ghost"
             onClick={goPrev}
-            disabled={stepIndex(stepKey) === 0}
+            disabled={stepIndex(stepKey) === 0 || loadingData}
           >
             ← Atrás
           </Button>
@@ -678,6 +800,7 @@ export default function CreatorForm() {
               type="button"
               variant="outline"
               onClick={() => router.push("/rifas")}
+              disabled={loadingData}
             >
               Cancelar
             </Button>
@@ -685,15 +808,21 @@ export default function CreatorForm() {
               <Button
                 type="submit"
                 className="!bg-gradient-to-r from-brand-rose to-brand-violet shadow-cta active:scale-[0.98]"
-                disabled={!canContinue() || submitting}
+                disabled={!canContinue() || submitting || loadingData}
               >
-                {submitting ? "Creando…" : "✓ Crear rifa"}
+                {submitting
+                  ? editingId
+                    ? "Guardando…"
+                    : "Creando…"
+                  : editingId
+                    ? "✓ Guardar cambios"
+                    : "✓ Crear rifa"}
               </Button>
             ) : (
               <Button
                 type="submit"
                 className="!bg-gradient-to-r from-brand-rose to-brand-violet shadow-cta active:scale-[0.98]"
-                disabled={!canContinue()}
+                disabled={!canContinue() || loadingData}
               >
                 Continuar →
               </Button>
@@ -707,23 +836,43 @@ export default function CreatorForm() {
           <div
             className={cn(
               "relative aspect-[4/3] overflow-hidden",
-              projected.mock.is_solidarity
-                ? "bg-gradient-to-br from-brand-cyan via-cyan-500 to-brand-rose"
-                : "bg-gradient-to-br from-brand-rose via-pink-500 to-brand-violet"
+              form.prize_image_url
+                ? "bg-slate-100"
+                : projected.mock.is_solidarity
+                  ? "bg-gradient-to-br from-brand-cyan via-cyan-500 to-brand-rose"
+                  : "bg-gradient-to-br from-brand-rose via-pink-500 to-brand-violet"
             )}
           >
+            {form.prize_image_url ? (
+              <img
+                src={form.prize_image_url}
+                alt="Premio"
+                className="absolute inset-0 h-full w-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+            ) : null}
             <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] [background-size:18px_18px]" />
-            <div className="absolute inset-0 grid place-items-center">
-              <div className="h-20 w-20 rounded-3xl bg-white/20 backdrop-blur grid place-items-center text-4xl">
-                {projected.mock.is_solidarity ? "💝" : "🏆"}
+            {!form.prize_image_url && (
+              <div className="absolute inset-0 grid place-items-center">
+                <div className="h-20 w-20 rounded-3xl bg-white/20 backdrop-blur grid place-items-center text-4xl">
+                  {projected.mock.is_solidarity ? "💝" : "🏆"}
+                </div>
               </div>
-            </div>
+            )}
             <div className="absolute top-3 left-3">
               <Badge
                 variant={projected.mock.is_solidarity ? "solidarity" : "prize"}
                 className="shadow-[0_8px_24px_-8px_rgba(0,0,0,0.2)]"
               >
-                {projected.mock.is_solidarity ? "Solidaria · Borrador" : "Premio · Borrador"}
+                {editingId
+                  ? projected.mock.is_solidarity
+                    ? "Solidaria · Editando"
+                    : "Premio · Editando"
+                  : projected.mock.is_solidarity
+                    ? "Solidaria · Borrador"
+                    : "Premio · Borrador"}
               </Badge>
             </div>
             <div className="absolute top-3 right-3">
