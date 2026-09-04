@@ -84,6 +84,7 @@ type ReservaRow = {
 
 type Participacion = {
   id: string;
+  reservaId: string;
   rifa: Rifa;
   numbers: string[];
   pagoStatus: PagoStatus;
@@ -182,6 +183,7 @@ async function loadParticipaciones(): Promise<Participacion[]> {
     if (!existing) {
       grouped.set(rifaId, {
         id: `PART-${row.id.slice(0, 8).toUpperCase()}`,
+        reservaId: row.id,
         rifa: mapRifaRow(row.rifa),
         numbers: [row.number],
         pagoStatus: statusNow,
@@ -194,9 +196,11 @@ async function loadParticipaciones(): Promise<Participacion[]> {
       existing.monto += row.rifa.number_price;
       if (priority[statusNow] > priority[existing.pagoStatus]) {
         existing.pagoStatus = statusNow;
+        existing.reservaId = row.id;
       }
       if (new Date(row.created_at) > new Date(existing.pagoDate)) {
         existing.pagoDate = row.created_at;
+        existing.reservaId = row.id;
       }
     }
   }
@@ -527,7 +531,7 @@ export default async function MisRifasParticipandoPage() {
                             className="w-full !h-10 !bg-gradient-to-r from-brand-gold via-rose-500 to-brand-violet !text-white font-black shadow-cta shadow-rose-500/30"
                           >
                             <Link
-                              href={`/checkout/${p.id}?rifa_id=${p.rifa.id}&numbers=${p.numbers.join(",")}`}
+                              href={`/checkout/${p.reservaId}?rifa_id=${p.rifa.id}&numbers=${p.numbers.join(",")}`}
                             >
                               <CreditCard className="mr-1.5 h-4 w-4" />
                               Continuar pago
