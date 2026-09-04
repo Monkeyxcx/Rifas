@@ -141,6 +141,10 @@ export default async function CheckoutPage({
   const { reservaId } = await params;
   const { rifa_id, numbers } = await searchParams;
 
+  if (!UUID_RE.test(reservaId)) {
+    redirect("/mis-rifas/participando?error=reserva_invalida");
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -378,7 +382,7 @@ export default async function CheckoutPage({
                       {country}
                       <span className="opacity-60">·</span>
                       <CalendarDays className="h-3 w-3" />
-                      {rifa.ends_at ? endsDate!.toLocaleDateString("es-CO") : "—"}
+                      {rifa.ends_at ? endsDate?.toLocaleDateString("es-CO") : "—"}
                     </div>
                   </div>
                 </div>
