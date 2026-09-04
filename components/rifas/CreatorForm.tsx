@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -463,13 +464,15 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                     />
                     {form.prize_image_url ? (
                       <div className="flex aspect-video rounded-xl border border-slate-200 bg-white overflow-hidden relative">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
+                        <Image
                           src={form.prize_image_url}
                           alt="Vista previa premio"
-                          className="h-full w-full object-cover"
+                          fill
+                          sizes="(max-width: 1024px) 100vw, 50vw"
+                          className="object-cover"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none";
+                            const el = e.target as HTMLImageElement | null;
+                            if (el && "style" in el) el.style.display = "none";
                           }}
                         />
                       </div>
@@ -863,17 +866,17 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
             )}
           >
             {form.prize_image_url ? (
-              <div className="absolute inset-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={form.prize_image_url}
-                  alt="Premio"
-                  className="absolute inset-0 h-full w-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              </div>
+              <Image
+                src={form.prize_image_url}
+                alt="Premio"
+                fill
+                sizes="(max-width: 1024px) 100vw, 40vw"
+                className="object-cover"
+                onError={(e) => {
+                  const el = e.target as HTMLImageElement | null;
+                  if (el && "style" in el) el.style.display = "none";
+                }}
+              />
             ) : null}
             <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] [background-size:18px_18px]" />
             {!form.prize_image_url && (

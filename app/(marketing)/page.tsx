@@ -228,7 +228,7 @@ export default function MarketingHomePage() {
                     {s.desc}
                   </p>
                   {i < STEPS.length - 1 && (
-                    <ArrowRight className="hidden lg:block absolute top-14 -right-10 h-6 w-6 text-slate-300" />
+                    <ArrowRight className="hidden md:block absolute top-14 -right-10 h-6 w-6 text-slate-300" />
                   )}
                 </div>
               </div>
