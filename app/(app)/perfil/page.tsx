@@ -1,71 +1,39 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   BadgeCheck,
   Bell,
-  BellOff,
   CalendarClock,
   CreditCard,
-  Eye,
-  EyeOff,
   FileText,
   Globe,
   KeyRound,
-  LogOut,
   Mail,
   MapPin,
   NotebookPen,
-  Save,
   ShieldAlert,
   ShieldCheck,
-  Smartphone,
   Ticket,
-  Trash2,
-  UserRoundPen,
   Wallet,
   PartyPopper,
   Clock3,
   Trophy,
   Gift,
-  Sparkles
+  Sparkles,
+  Plus,
+  Settings2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/server";
 import type { Perfil } from "@/lib/types";
+import { ProfileSignOutButton } from "@/components/profile/ProfileSignOutButton";
+import { ProfileSaveForm } from "@/components/profile/ProfileSaveForm";
 
 export const revalidate = 0;
-
-const perfilDemo: Perfil = {
-  id: "user-demo-0001",
-  display_name: "Usuario Demo",
-  full_name: "Usuario Demo RifasCenter",
-  avatar_url: null,
-  phone: "+57 300 987 6543",
-  country: "Colombia",
-  bio: "Apasionado por los sorteos y apoyar causas solidarias. He participado en más de 20 rifas con RifasCenter. 🎯",
-  wallet_balance: 45_200,
-  is_verified: true,
-  created_at: new Date(Date.now() - 180 * 86_400_000).toISOString(),
-  updated_at: new Date(Date.now() - 7 * 86_400_000).toISOString()
-};
-
-const statsCreador = {
-  creadas: 3,
-  vendidos: 128,
-  recaudado: 2_450_000
-};
-
-const statsParticipante = {
-  tickets: 4,
-  numerosComprados: 22,
-  invertido: 892_800,
-  ganados: 0
-};
 
 type NavItem = {
   id: string;
@@ -75,15 +43,119 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { id: "datos", label: "Datos personales", icon: UserRoundPen, active: true },
+  { id: "datos", label: "Datos personales", icon: Settings2, active: true },
   { id: "seguridad", label: "Seguridad y acceso", icon: KeyRound },
   { id: "notificaciones", label: "Notificaciones", icon: Bell },
   { id: "facturacion", label: "Facturación y pagos", icon: CreditCard },
   { id: "peligro", label: "Zona peligrosa", icon: ShieldAlert }
 ];
 
-export default function PerfilPage() {
-  const initials = perfilDemo.full_name
+async function getCurrentPerfil(): Promise<{
+  user: { id: string; email: string };
+  perfil: Perfil;
+  statsCreador: { creadas: number; vendidos: number; recaudado: number };
+  statsParticipante: {
+    tickets: number;
+    numerosComprados: number;
+    invertido: number;
+    ganados: number;
+  };
+} | null> {
+  try {
+    const supabase = await createClient();
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !userData?.user) {
+      return null;
+    }
+    const user = userData.user;
+
+    const { data: profileRow, error: pErr } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (pErr || !profileRow) {
+      return null;
+    }
+    const perfil = profileRow as unknown as Perfil;
+
+    const { data: creadasRows, error: crErr } = await supabase
+      .from("rifas")
+      .select("id,number_price,total_numbers,available_numbers")
+      .eq("creator_id", user.id);
+    let creadas = 0;
+    let vendidos = 0;
+    let recaudado = 0;
+    if (!crErr && creadasRows) {
+      creadas = creadasRows.length;
+      for (const r of creadasRows as Array<{
+        number_price: number;
+        total_numbers: number;
+        available_numbers: number;
+      }>) {
+        const s = Number(r.total_numbers || 0) - Number(r.available_numbers || 0);
+        vendidos += Math.max(0, s);
+        recaudado += Math.max(0, s) * Number(r.number_price || 0);
+      }
+    }
+
+    const { data: partRows, error: partErr } = await supabase
+      .from("reservas")
+      .select("rifa_id,number,status,rifa:rifas(number_price)")
+      .eq("user_id", user.id)
+      .in("status", ["reserved", "paid"]);
+    let tickets = 0;
+    let numerosComprados = 0;
+    let invertido = 0;
+    const rifaKeys = new Set<string>();
+    if (!partErr && partRows) {
+      for (const p of partRows as Array<{
+        rifa_id: string;
+        number: string;
+        status: string;
+        rifa?: { number_price: number } | null;
+      }>) {
+        rifaKeys.add(p.rifa_id);
+        if (p.status === "paid" || p.status === "reserved") {
+          numerosComprados += 1;
+          invertido += Number(p.rifa?.number_price || 0);
+        }
+      }
+      tickets = rifaKeys.size;
+    }
+
+    const statsCreador = {
+      creadas,
+      vendidos,
+      recaudado
+    };
+    const statsParticipante = {
+      tickets,
+      numerosComprados,
+      invertido,
+      ganados: 0
+    };
+    return {
+      user: { id: user.id, email: user.email ?? "usuario@rifascenter.com" },
+      perfil,
+      statsCreador,
+      statsParticipante
+    };
+  } catch (e) {
+    console.error("[perfil page] load failed", e);
+    return null;
+  }
+}
+
+export default async function PerfilPage() {
+  const loaded = await getCurrentPerfil();
+  if (!loaded) redirect("/auth?redirectTo=%2Fperfil");
+  const { user, perfil, statsCreador, statsParticipante } = loaded;
+
+  const displayName = perfil.display_name ?? perfil.full_name ?? user.email.split("@")[0] ?? "Usuario";
+  const fullName = perfil.full_name ?? displayName;
+  const initials = fullName
     ?.split(" ")
     .filter((_, i, a) => i === 0 || i === a.length - 1)
     .map((n) => n[0]?.toUpperCase() ?? "")
@@ -109,16 +181,16 @@ export default function PerfilPage() {
                 <div className="grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-white/95 to-white/70 text-brand-rose text-2xl font-black shadow-cta ring-4 ring-white/30 backdrop-blur lg:h-24 lg:w-24 lg:text-3xl">
                   {initials}
                 </div>
-                {perfilDemo.is_verified && (
+                {perfil.is_verified && (
                   <BadgeCheck className="absolute -bottom-1 -right-1 h-8 w-8 text-emerald-400 drop-shadow" strokeWidth={2.4} />
                 )}
               </div>
               <div>
                 <div className="mb-1.5 flex items-center gap-2 flex-wrap">
                   <h1 className="font-display text-2xl font-black tracking-tight lg:text-3xl">
-                    ¡Hola, {perfilDemo.display_name}! 👋
+                    ¡Hola, {displayName}! 👋
                   </h1>
-                  {perfilDemo.is_verified && (
+                  {perfil.is_verified && (
                     <Badge className="!bg-white/95 !text-emerald-600 !border-0 shadow text-[11px]">
                       <BadgeCheck className="mr-1 h-3 w-3" />
                       Verificado
@@ -127,19 +199,18 @@ export default function PerfilPage() {
                 </div>
                 <p className="text-sm text-white/85 lg:text-base">
                   <Mail className="mr-1 inline h-3.5 w-3.5 -translate-y-0.5" />
-                  {perfilDemo.full_name?.toLowerCase().replace(/\s+/g, ".") ?? "usuario.demo"}@rifascenter.com
+                  {user.email}
                   <span className="mx-2 opacity-60">·</span>
                   <MapPin className="mr-1 inline h-3.5 w-3.5 -translate-y-0.5" />
-                  {perfilDemo.country}
+                  {perfil.country || "Sin país registrado"}
                 </p>
                 <p className="mt-1 text-xs text-white/70">
                   <CalendarClock className="mr-1 inline h-3 w-3 -translate-y-0.5" />
                   Miembro desde{" "}
-                  {new Date(perfilDemo.created_at).toLocaleDateString("es-CO", {
+                  {new Date(perfil.created_at).toLocaleDateString("es-CO", {
                     month: "long",
                     year: "numeric"
-                  })}{" "}
-                  · 6 meses en la plataforma
+                  })}
                 </p>
               </div>
             </div>
@@ -162,7 +233,7 @@ export default function PerfilPage() {
                 <CardContent className="p-3 lg:p-4 text-center">
                   <Wallet className="mx-auto mb-1 h-5 w-5 text-white/80" />
                   <p className="font-numbers text-2xl font-black tabular-nums">
-                    {formatCurrency(perfilDemo.wallet_balance)}
+                    {formatCurrency(perfil.wallet_balance || 0)}
                   </p>
                   <p className="text-[10px] font-bold uppercase tracking-wide text-white/75">Saldo wallet</p>
                 </CardContent>
@@ -219,23 +290,30 @@ export default function PerfilPage() {
               </CardHeader>
               <CardContent className="space-y-2 pb-4">
                 <p className="font-numbers text-3xl font-black tabular-nums tracking-tight text-emerald-600">
-                  {formatCurrency(perfilDemo.wallet_balance)}
+                  {formatCurrency(perfil.wallet_balance || 0)}
                 </p>
                 <p className="text-xs font-semibold text-slate-500">
-                  Última recarga · hace 12 días
+                  Última actualización ·{" "}
+                  {new Date(perfil.updated_at).toLocaleDateString("es-CO", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric"
+                  })}
                 </p>
                 <div className="grid grid-cols-2 gap-2 pt-2">
                   <Button
                     size="sm"
                     className="h-9 !bg-gradient-to-r from-emerald-500 to-brand-cyan !text-white font-bold"
+                    disabled
                   >
                     <CreditCard className="mr-1 h-3.5 w-3.5" />
-                    Recargar
+                    Recargar (pronto)
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     className="h-9 !border-emerald-200 !text-emerald-700 font-bold"
+                    disabled
                   >
                     <FileText className="mr-1 h-3.5 w-3.5" />
                     Retirar
@@ -249,7 +327,7 @@ export default function PerfilPage() {
               <CardContent className="p-3 grid gap-1.5">
                 <Button asChild variant="outline" className="!h-10 justify-start !border-slate-200 !text-slate-700 font-bold">
                   <Link href="/mis-rifas/creadas">
-                    <Ticket className="mr-2 h-4 w-4 text-brand-rose" /> Mis rifas creadas
+                    <Gift className="mr-2 h-4 w-4 text-brand-violet" /> Mis rifas creadas
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="!h-10 justify-start !border-slate-200 !text-slate-700 font-bold">
@@ -259,13 +337,46 @@ export default function PerfilPage() {
                 </Button>
                 <Button asChild variant="outline" className="!h-10 justify-start !border-slate-200 !text-slate-700 font-bold">
                   <Link href="/rifas/crear">
-                    <NotebookPen className="mr-2 h-4 w-4 text-brand-violet" /> Crear rifa nueva
+                    <Plus className="mr-2 h-4 w-4 text-brand-rose" /> Crear rifa nueva
                   </Link>
                 </Button>
                 <Separator className="my-1" />
-                <Button variant="ghost" className="!h-10 justify-start font-bold !text-slate-500 hover:!text-rose-500">
-                  <LogOut className="mr-2 h-4 w-4" /> Cerrar sesión
-                </Button>
+                <ProfileSignOutButton />
+              </CardContent>
+            </Card>
+
+            <Card className="border-dashed border-slate-200 bg-gradient-to-br from-slate-50/60 via-white to-slate-50">
+              <CardContent className="p-4 space-y-2 text-xs">
+                <div className="flex items-center gap-2 font-bold text-slate-700">
+                  <Trophy className="h-4 w-4 text-brand-gold" />
+                  Estadísticas
+                </div>
+                <ul className="space-y-1.5 text-slate-600">
+                  <li className="flex justify-between">
+                    <span className="text-slate-500">Invertido total</span>
+                    <span className="font-bold tabular-nums text-slate-800">
+                      {formatCurrency(statsParticipante.invertido)}
+                    </span>
+                  </li>
+                  <li className="flex justify-between">
+                    <span className="text-slate-500">Recaudado como creador</span>
+                    <span className="font-bold tabular-nums text-slate-800">
+                      {formatCurrency(statsCreador.recaudado)}
+                    </span>
+                  </li>
+                  <li className="flex justify-between">
+                    <span className="text-slate-500">Números comprados</span>
+                    <span className="font-bold tabular-nums text-slate-800">
+                      {statsParticipante.numerosComprados}
+                    </span>
+                  </li>
+                  <li className="flex justify-between">
+                    <span className="text-slate-500">Premios ganados</span>
+                    <span className="font-bold tabular-nums text-slate-800">
+                      {statsParticipante.ganados}
+                    </span>
+                  </li>
+                </ul>
               </CardContent>
             </Card>
           </aside>
@@ -273,191 +384,34 @@ export default function PerfilPage() {
           {/* MAIN CONTENT · 5 SECTIONS */}
           <section className="space-y-6">
             {/* 1 · DATOS PERSONALES */}
-            <Card id="datos" className="border-slate-200 shadow-sm scroll-mt-24">
+            <ProfileSaveForm perfil={perfil} email={user.email} />
+
+            {/* 2 · SEGURIDAD */}
+            <Card id="seguridad" className="border-slate-200 shadow-sm scroll-mt-24">
               <CardHeader className="pb-4">
                 <div className="flex items-start gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-rose to-brand-violet text-white">
-                    <UserRoundPen className="h-5 w-5" strokeWidth={2.2} />
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white">
+                    <KeyRound className="h-5 w-5" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1">
-                    <CardTitle className="font-display text-lg">Datos personales</CardTitle>
+                    <CardTitle className="font-display text-lg">Seguridad y acceso</CardTitle>
                     <CardDescription>
-                      Esta información es la que verán los demás usuarios y creadores.
+                      Gestiona tu contraseña y dispositivos conectados.
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="display_name">Nombre visible (público)</Label>
-                    <Input id="display_name" defaultValue={perfilDemo.display_name ?? ""} className="h-11" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="full_name">Nombre completo (privado)</Label>
-                    <Input id="full_name" defaultValue={perfilDemo.full_name ?? ""} className="h-11" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="email" className="flex items-center gap-1">
-                      <Mail className="h-3.5 w-3.5 text-slate-400" />
-                      Correo electrónico
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="email"
-                        type="email"
-                        defaultValue="usuario.demo@rifascenter.com"
-                        className="h-11 pr-10"
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="phone" className="flex items-center gap-1">
-                      <Smartphone className="h-3.5 w-3.5 text-slate-400" />
-                      Teléfono / WhatsApp
-                    </Label>
-                    <Input id="phone" defaultValue={perfilDemo.phone ?? ""} className="h-11" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="country" className="flex items-center gap-1">
-                      <Globe className="h-3.5 w-3.5 text-slate-400" /> País
-                    </Label>
-                    <Input id="country" defaultValue={perfilDemo.country ?? ""} className="h-11" />
-                  </div>
-                  <div className="space-y-1.5 md:col-span-2">
-                    <Label htmlFor="bio">Biografía corta (máx 200 caracteres)</Label>
-                    <Textarea
-                      id="bio"
-                      defaultValue={perfilDemo.bio ?? ""}
-                      rows={3}
-                      className="resize-none"
-                      maxLength={200}
-                    />
-                    <p className="text-[11px] font-semibold text-slate-400 text-right">
-                      {(perfilDemo.bio?.length ?? 0)} / 200
-                    </p>
-                  </div>
+                  <Button variant="outline" className="justify-start h-11 !border-slate-200" disabled>
+                    <KeyRound className="mr-2 h-4 w-4 text-slate-500" />
+                    Cambiar contraseña (próximamente)
+                  </Button>
+                  <Button variant="outline" className="justify-start h-11 !border-slate-200" disabled>
+                    <ShieldCheck className="mr-2 h-4 w-4 text-slate-500" />
+                    Dispositivos conectados (próximamente)
+                  </Button>
                 </div>
-              </CardContent>
-              <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
-                <p className="text-xs font-semibold text-slate-500">
-                  <ShieldCheck className="mr-1 inline h-3.5 w-3.5 text-emerald-500" />
-                  Tus datos están protegidos con cifrado AES-256 y nunca se comparten sin tu consentimiento.
-                </p>
-                <Button
-                  size="lg"
-                  className="h-12 !bg-gradient-to-r from-brand-rose to-brand-violet !text-white font-black shadow-cta"
-                >
-                  <Save className="mr-1.5 h-4.5 w-4.5" />
-                  Guardar cambios
-                </Button>
-              </CardFooter>
-            </Card>
-
-            {/* 2 · SEGURIDAD */}
-            <Card id="seguridad" className="border-slate-200 shadow-sm scroll-mt-24">
-              <CardHeader className="pb-4">
-                <div className="flex items-start gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-violet to-brand-gold text-white">
-                    <KeyRound className="h-5 w-5" strokeWidth={2.2} />
-                  </div>
-                  <div className="flex-1">
-                    <CardTitle className="font-display text-lg">Seguridad y acceso</CardTitle>
-                    <CardDescription>
-                      Mantén tu cuenta segura. Recomendamos activar 2FA y usar contraseña única.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-3 md:grid-cols-2">
-                <Card className="!border-brand-violet/30 !bg-violet-50/40 shadow-none">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                      🔐 Contraseña
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Último cambio · hace 3 meses. Recomendamos actualizarla cada 90 días.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="relative">
-                      <Input type="password" defaultValue="••••••••••••••••" className="h-10 pl-3 pr-10" />
-                      <button className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
-                        <EyeOff className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <Button size="sm" className="h-9 !bg-white !text-brand-violet !border !border-brand-violet/40 font-bold shadow-none">
-                      Cambiar contraseña
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card className="!border-brand-gold/40 !bg-amber-50/50 shadow-none">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                      🛡 Autenticación de dos pasos (2FA)
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Añade una capa extra. Google Authenticator, Authy o SMS.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <Badge variant="secondary" className="!bg-amber-100 !text-amber-700 !border !border-amber-200">
-                      ⚠️ Actualmente desactivado
-                    </Badge>
-                    <Button size="sm" className="h-9 !bg-gradient-to-r from-brand-gold to-rose-500 !text-white font-bold">
-                      Activar 2FA ahora
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card className="md:col-span-2 !border-slate-200 shadow-none">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-bold text-slate-800">
-                      Sesiones activas · 2 dispositivos
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3">
-                      <div className="flex items-center gap-3">
-                        <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand-cyan/10 text-brand-cyan">
-                          <Smartphone className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900">
-                            Chrome en Windows 11 <Badge variant="active" className="ml-2 h-4 text-[10px] px-1.5 py-0">ACTUAL</Badge>
-                          </p>
-                          <p className="text-[11px] font-semibold text-slate-500">
-                            Medellín, COL · IP 192.168.*** · hace 2 min
-                          </p>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="sm" className="h-8 !text-slate-500 hover:!text-rose-500 font-bold">
-                        - tú
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3">
-                      <div className="flex items-center gap-3">
-                        <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand-rose/10 text-brand-rose">
-                          <Smartphone className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900">Safari en iPhone 15</p>
-                          <p className="text-[11px] font-semibold text-slate-500">
-                            Bogotá, COL · IP 190.146.*** · hace 4 días
-                          </p>
-                        </div>
-                      </div>
-                      <Button variant="outline" size="sm" className="h-8 !h-8 !text-rose-500 !border-rose-200 font-bold">
-                        Cerrar sesión
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
               </CardContent>
             </Card>
 
@@ -465,214 +419,93 @@ export default function PerfilPage() {
             <Card id="notificaciones" className="border-slate-200 shadow-sm scroll-mt-24">
               <CardHeader className="pb-4">
                 <div className="flex items-start gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-gold to-rose-400 text-white">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-cyan to-sky-500 text-white">
                     <Bell className="h-5 w-5" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1">
-                    <CardTitle className="font-display text-lg">Preferencias de notificaciones</CardTitle>
+                    <CardTitle className="font-display text-lg">Notificaciones</CardTitle>
                     <CardDescription>
-                      Te avisamos solo de lo importante. Puedes cambiarlo en cualquier momento.
+                      Elige por dónde quieres que te avisemos de sorteos, pagos y rifas que sigues.
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="grid gap-3 md:grid-cols-2">
+              <CardContent className="space-y-2">
                 {[
-                  { t: "Pagos aprobados", d: "Ticket oficial y comprobante", def: true, on: true, icon: CreditCard, c: "emerald" },
-                  { t: "Reserva por vencer", d: "Aviso cuando quedan 5 min", def: true, on: true, icon: Clock3, c: "rose" },
-                  { t: "Resultado del sorteo", d: "Número ganador y ticket", def: true, on: true, icon: Trophy, c: "violet" },
-                  { t: "Sorteos que sigo", d: "Recordatorios 24h antes", def: true, on: false, icon: Bell, c: "cyan" },
-                  { t: "Ofertas y promociones", d: "Rifas destacadas semanales", def: false, on: false, icon: Gift, c: "gold" },
-                  { t: "Anuncios plataforma", d: "Nuevas funciones y tips", def: false, on: true, icon: Sparkles, c: "amber" }
-                ].map((n, i) => {
-                  const Icon = n.icon;
-                  return (
-                    <div
-                      key={i}
-                      className={`flex items-center justify-between rounded-2xl border p-4 ${
-                        n.on
-                          ? "border-slate-200 bg-white"
-                          : "border-dashed border-slate-300 bg-slate-50/60"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div
-                          className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
-                            n.c === "emerald"
-                              ? "bg-emerald-50 text-emerald-600"
-                              : n.c === "rose"
-                              ? "bg-rose-50 text-rose-500"
-                              : n.c === "violet"
-                              ? "bg-violet-50 text-violet-600"
-                              : n.c === "cyan"
-                              ? "bg-cyan-50 text-cyan-600"
-                              : n.c === "gold"
-                              ? "bg-amber-50 text-amber-600"
-                              : "bg-slate-100 text-slate-600"
-                          }`}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900 truncate">{n.t}</p>
-                          <p className="text-xs font-semibold text-slate-500 truncate">{n.d}</p>
-                        </div>
+                  { icon: Mail, t: "Notificaciones por email", d: "Pagos, rifas ganadas, recordatorios" },
+                  { icon: Sparkles, t: "Anuncios de nuevas rifas premium", d: "Una vez por semana máximo" },
+                  { icon: Clock3, t: "Recordatorios de cierre de venta", d: "Rifas creadas por ti cuando queden < 48h" }
+                ].map((row) => (
+                  <div key={row.t} className="flex items-start justify-between gap-4 rounded-xl p-4 hover:bg-slate-50 transition">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600">
+                        <row.icon className="h-4 w-4" />
                       </div>
-                      <Button
-                        variant={n.on ? "default" : "outline"}
-                        size="sm"
-                        className={
-                          n.on
-                            ? "h-8 !bg-emerald-500 !text-white !border-0 font-bold shrink-0"
-                            : "h-8 !text-slate-500 !border-slate-300 font-bold shrink-0"
-                        }
-                      >
-                        {n.on ? (
-                          <>
-                            <Bell className="mr-1 h-3.5 w-3.5" /> ON
-                          </>
-                        ) : (
-                          <>
-                            <BellOff className="mr-1 h-3.5 w-3.5" /> OFF
-                          </>
-                        )}
-                      </Button>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900 text-sm">{row.t}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{row.d}</div>
+                      </div>
                     </div>
-                  );
-                })}
+                    <Badge variant="outline" className="shrink-0 !border-slate-200 !text-slate-500">Pronto</Badge>
+                  </div>
+                ))}
               </CardContent>
             </Card>
 
-            {/* 4 · FACTURACIÓN */}
+            {/* 4 · FACTURACION */}
             <Card id="facturacion" className="border-slate-200 shadow-sm scroll-mt-24">
               <CardHeader className="pb-4">
                 <div className="flex items-start gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-cyan to-emerald-500 text-white">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-gold to-amber-500 text-white">
                     <CreditCard className="h-5 w-5" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1">
                     <CardTitle className="font-display text-lg">Facturación y pagos</CardTitle>
                     <CardDescription>
-                      Gestiona tus métodos de pago guardados, facturas y retiros.
+                      Información fiscal y métodos de pago.
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-5">
-                <div className="rounded-2xl border border-brand-rose/30 bg-gradient-to-br from-rose-50 via-white to-violet-50 p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="grid h-14 w-20 place-items-center rounded-xl bg-gradient-to-br from-brand-rose via-brand-violet to-brand-cyan text-white shadow-lg">
-                        <div className="text-[10px] font-black tracking-widest">VISA</div>
-                      </div>
-                      <div>
-                        <p className="font-numbers text-lg font-black tabular-nums text-slate-900">
-                          •••• •••• •••• 4567
-                        </p>
-                        <p className="text-[11px] font-semibold text-slate-500">
-                          Titular Usuario Demo · Vence 08/29 · <Badge variant="active" className="ml-1 h-4 text-[10px] px-1.5 py-0">PRINCIPAL</Badge>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="h-9 !border-slate-300 !text-slate-700 font-bold">
-                        Editar
-                      </Button>
-                      <Button variant="outline" size="sm" className="h-9 !border-slate-300 !text-slate-700 font-bold">
-                        Historial
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="h-9 !bg-gradient-to-r from-brand-rose to-brand-violet !text-white font-bold"
-                      >
-                        + Añadir tarjeta
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                  <div className="mb-3 flex items-center justify-between">
-                    <h4 className="font-bold text-slate-800">Últimas 3 facturas</h4>
-                    <Link href="#" className="text-xs font-bold text-brand-rose hover:underline">
-                      Ver todas →
-                    </Link>
-                  </div>
-                  <div className="space-y-2">
-                    {[
-                      { n: "FAC-2026-0432", f: "hace 3 días", m: "$ 111.240", e: "Completada" },
-                      { n: "FAC-2026-0398", f: "hace 8 días", m: "$ 320.000", e: "Completada" },
-                      { n: "FAC-2026-0311", f: "hace 21 días", m: "$ 461.560", e: "Completada" }
-                    ].map((f) => (
-                      <div
-                        key={f.n}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-3"
-                      >
-                        <div>
-                          <p className="font-numbers text-sm font-bold text-slate-900 tabular-nums">{f.n}</p>
-                          <p className="text-[11px] font-semibold text-slate-500">{f.f}</p>
-                        </div>
-                        <Badge variant="paid" className="!bg-emerald-100 !text-emerald-700 !border !border-emerald-200 text-[11px]">
-                          {f.e}
-                        </Badge>
-                        <p className="font-numbers text-base font-black tabular-nums text-slate-900 min-w-[100px] text-right">
-                          {f.m}
-                        </p>
-                        <Button variant="ghost" size="sm" className="h-8 !text-brand-violet font-bold">
-                          <FileText className="mr-1 h-3.5 w-3.5" /> PDF
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Button variant="outline" className="justify-start h-11 !border-slate-200" disabled>
+                    <Globe className="mr-2 h-4 w-4 text-slate-500" />
+                    Datos fiscales (próximamente)
+                  </Button>
+                  <Button variant="outline" className="justify-start h-11 !border-slate-200" disabled>
+                    <FileText className="mr-2 h-4 w-4 text-slate-500" />
+                    Historial de pagos (próximamente)
+                  </Button>
                 </div>
               </CardContent>
             </Card>
 
             {/* 5 · ZONA PELIGROSA */}
-            <Card id="peligro" className="border-2 border-dashed border-rose-300 bg-rose-50/30 shadow-sm scroll-mt-24">
+            <Card id="peligro" className="border-rose-200 shadow-sm bg-rose-50/30 scroll-mt-24">
               <CardHeader className="pb-4">
                 <div className="flex items-start gap-3">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-rose-500 to-rose-700 text-white">
                     <ShieldAlert className="h-5 w-5" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1">
-                    <CardTitle className="font-display text-lg text-rose-800">Zona peligrosa</CardTitle>
-                    <CardDescription className="text-rose-700/80">
-                      Acciones destructivas e irreversibles. Lee dos veces antes de proceder.
+                    <CardTitle className="font-display text-lg text-rose-900">Zona peligrosa</CardTitle>
+                    <CardDescription className="text-rose-800/80">
+                      Acciones irreversibles. Asegúrate antes de confirmar.
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-rose-200 bg-white p-5">
-                  <div>
-                    <p className="font-bold text-slate-900">Desactivar cuenta temporalmente</p>
-                    <p className="text-xs font-semibold text-slate-500">
-                      Tus rifas salen de la página principal, pero tus datos y números se conservan 12 meses.
-                    </p>
+                <div className="flex items-center justify-between flex-wrap gap-3 rounded-xl border border-dashed border-rose-300 bg-white/70 p-4">
+                  <div className="space-y-0.5">
+                    <div className="font-semibold text-slate-900 text-sm">Anonimizar mi cuenta</div>
+                    <div className="text-xs text-slate-500">
+                      Elimina todos tus datos personales manteniendo el historial de rifas públicas.
+                    </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    className="h-11 !border-rose-400 !text-rose-600 hover:!bg-rose-50 font-bold px-5"
-                  >
-                    Desactivar cuenta
-                  </Button>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-rose-300 bg-gradient-to-br from-rose-100/60 to-white p-5">
-                  <div>
-                    <p className="font-bold text-rose-900 flex items-center gap-1.5">
-                      <Trash2 className="h-4 w-4" />
-                      Eliminar cuenta PERMANENTEMENTE
-                    </p>
-                    <p className="text-xs font-semibold text-rose-700/80">
-                      Borra TODOS tus datos: rifas, reservas, tickets, pagos, wallet y notificaciones. No hay vuelta atrás.
-                    </p>
-                  </div>
-                  <Button
-                    size="lg"
-                    className="h-12 !bg-gradient-to-r from-rose-600 to-rose-800 !text-white font-black shadow-lg shadow-rose-900/20"
-                  >
-                    <Trash2 className="mr-1.5 h-4.5 w-4.5" />
-                    Sí, eliminar mi cuenta
+                  <Button variant="destructive" size="sm" disabled>
+                    Solicitar anonimización (pronto)
                   </Button>
                 </div>
               </CardContent>
