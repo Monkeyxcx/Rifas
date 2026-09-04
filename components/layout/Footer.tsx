@@ -6,27 +6,27 @@ const FOOTER_COLS = [
     title: "Plataforma",
     links: [
       { label: "Rifas activas", href: "/rifas" },
-      { label: "Rifas solidarias", href: "/rifas?solidarias=true" },
-      { label: "Cómo funciona", href: "/como-funciona" },
-      { label: "Historial de ganadores", href: "/ganadores" }
+      { label: "Rifas solidarias", href: "/rifas?tab=solidarias" },
+      { label: "Cómo funciona", href: "/como-funciona", placeholder: true },
+      { label: "Historial de ganadores", href: "/ganadores", placeholder: true }
     ]
   },
   {
     title: "Para creadores",
     links: [
       { label: "Crea tu rifa", href: "/rifas/crear" },
-      { label: "Tarifas y comisiones", href: "/tarifas" },
-      { label: "Soporte", href: "/soporte" },
-      { label: "API & Developers", href: "/developers" }
+      { label: "Tarifas y comisiones", href: "/tarifas", placeholder: true },
+      { label: "Soporte", href: "/soporte", placeholder: true },
+      { label: "API & Developers", href: "/developers", placeholder: true }
     ]
   },
   {
     title: "Legal",
     links: [
-      { label: "Términos y condiciones", href: "/terminos" },
-      { label: "Política de privacidad", href: "/privacidad" },
-      { label: "Política de reembolsos", href: "/reembolsos" },
-      { label: "Reglamento de sorteos", href: "/reglamento" }
+      { label: "Términos y condiciones", href: "/terminos", placeholder: true },
+      { label: "Política de privacidad", href: "/privacidad", placeholder: true },
+      { label: "Política de reembolsos", href: "/reembolsos", placeholder: true },
+      { label: "Reglamento de sorteos", href: "/reglamento", placeholder: true }
     ]
   }
 ];
@@ -66,16 +66,34 @@ export function Footer() {
                 {col.title}
               </h4>
               <ul className="space-y-3">
-                {col.links.map((link) => (
-                  <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      className="text-sm text-slate-500 hover:text-brand-rose transition-colors"
+                {col.links.map((link) => {
+                  const isPlaceholder = (link as { placeholder?: boolean }).placeholder === true;
+                  if (isPlaceholder) {
+                    return (
+                      <li key={link.href}>
+                    <span
+                      title="Próximamente"
+                      className="group relative inline-flex items-center gap-1 text-sm text-slate-400 cursor-not-allowed select-none"
                     >
                       {link.label}
-                    </Link>
+                      <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                        Pronto
+                      </span>
+                    </span>
                   </li>
-                ))}
+                    );
+                  }
+                  return (
+                    <li key={link.href}>
+                      <Link
+                        href={link.href}
+                        className="text-sm text-slate-500 hover:text-brand-rose transition-colors"
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}

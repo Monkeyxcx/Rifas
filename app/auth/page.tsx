@@ -281,19 +281,25 @@ function AuthInner() {
 
                 <div className="mt-6 pt-5 border-t border-slate-200/80 text-xs text-slate-500 text-center leading-relaxed">
                   Al continuar aceptas los{" "}
-                  <Link
-                    href="/legal/terminos"
-                    className="underline decoration-slate-300 hover:decoration-brand-rose hover:text-brand-rose transition-colors font-medium"
+                  <span
+                    title="Próximamente"
+                    className="inline-flex items-center gap-1 underline decoration-slate-300 text-slate-500 cursor-not-allowed select-none font-medium"
                   >
                     Términos y condiciones
-                  </Link>{" "}
+                    <span className="rounded-full bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500 not-italic no-underline">
+                      Pronto
+                    </span>
+                  </span>{" "}
                   y la{" "}
-                  <Link
-                    href="/legal/privacidad"
-                    className="underline decoration-slate-300 hover:decoration-brand-rose hover:text-brand-rose transition-colors font-medium"
+                  <span
+                    title="Próximamente"
+                    className="inline-flex items-center gap-1 underline decoration-slate-300 text-slate-500 cursor-not-allowed select-none font-medium"
                   >
                     Política de privacidad
-                  </Link>
+                    <span className="rounded-full bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500 not-italic no-underline">
+                      Pronto
+                    </span>
+                  </span>
                   .
                 </div>
               </div>
