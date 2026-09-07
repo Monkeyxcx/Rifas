@@ -293,13 +293,55 @@ export async function POST(req: Request) {
     );
   } catch (err) {
     console.error("[mercadopago] create-preference error", err);
+    let errorMsg = "Error desconocido al crear la preferencia de pago.";
+    const debug: Record<string, unknown> = {};
+    try {
+      if (err instanceof Error) {
+        errorMsg = err.message || errorMsg;
+        if (err.stack) debug.stack = err.stack.split("\n", 4).join(" ");
+        const errAny = err as unknown as Record<string, unknown>;
+        if (errAny.cause !== undefined) debug.cause = String(errAny.cause);
+        for (const k of ["code", "name", "status", "statusCode"]) {
+          if (errAny[k] !== undefined && errAny[k] !== null) debug[k] = errAny[k];
+        }
+      }
+      if (err && typeof err === "object") {
+        const e = err as Record<string, unknown>;
+        const TOP_KEYS = [
+          "name", "message", "code", "status", "statusCode",
+          "error", "errors", "cause", "url", "requestId",
+          "idempotency_key", "sandbox_init_point", "init_point"
+        ];
+        for (const k of TOP_KEYS) {
+          if (e[k] !== undefined && e[k] !== null) debug[k] = e[k];
+        }
+        if (e.response && typeof e.response === "object") {
+          const resp = e.response as Record<string, unknown>;
+          for (const k of ["status", "statusText"]) {
+            if (resp[k] !== undefined) debug["response." + k] = resp[k];
+          }
+          if (resp.data && typeof resp.data === "object") {
+            const data = resp.data as Record<string, unknown>;
+            for (const k of ["message", "error", "errors", "cause", "code", "status"]) {
+              if (data[k] !== undefined) debug["data." + k] = data[k];
+            }
+          }
+        }
+        if (typeof e.message === "string" && e.message.length > 0) {
+          errorMsg = e.message;
+        } else if (e.error !== undefined && e.error !== null) {
+          errorMsg = String(e.error);
+        }
+      } else if (typeof err === "string") {
+        errorMsg = err;
+      }
+    } catch {}
+    console.error("[mercadopago] debug serializado:", debug);
     return NextResponse.json(
       {
         ok: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido al crear la preferencia de pago."
+        error: errorMsg,
+        ...(Object.keys(debug).length > 0 ? { _debug: debug } : {})
       },
       { status: 500 }
     );
