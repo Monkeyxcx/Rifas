@@ -79,7 +79,29 @@ export async function POST(req: NextRequest) {
   }
 
   // 1. Signature validation
-  if (hasMercadoPagoCredentials() && process.env.MERCADO_PAGO_WEBHOOK_SECRET) {
+  // B#23 FIX: En entornos NO productivos, si el payload trae campo "_mock" inline
+  // (E2E testing / curl manual), bypassear la validación de firma HMAC y usar
+  // el mock como payment autoritativo directamente para no requerir MP API.
+  let payloadRawParsed: Record<string, unknown> | null = null;
+  try {
+    if (rawBody.length) payloadRawParsed = JSON.parse(rawBody) as Record<string, unknown>;
+  } catch {
+    payloadRawParsed = null;
+  }
+  const isMockPayload =
+    process.env.NODE_ENV !== "production" &&
+    payloadRawParsed !== null &&
+    typeof (payloadRawParsed as Record<string, unknown>)._mock === "object" &&
+    (payloadRawParsed as Record<string, unknown>)._mock !== null;
+  const hasMockInline = Boolean(isMockPayload);
+
+  if (hasMockInline) {
+    console.warn(
+      "[mercadopago/webhook] MOCK INLINE _mock detectado (dev mode). Bypass HMAC signature validation."
+    );
+  }
+
+  if (hasMercadoPagoCredentials() && process.env.MERCADO_PAGO_WEBHOOK_SECRET && !hasMockInline) {
     try {
       const signatureOk = await verifyWebhookSignature(req, rawBody);
       if (!signatureOk) {
@@ -98,7 +120,7 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
-  } else {
+  } else if (!hasMockInline) {
     console.warn(
       "[mercadopago/webhook] credenciales MP / webhook secret sin setear — aceptando request sin validar (dev mode)."
     );
@@ -107,7 +129,9 @@ export async function POST(req: NextRequest) {
   // 2. Parsear payload MP standard
   let payload: MPPayload = {};
   try {
-    payload = rawBody.length ? (JSON.parse(rawBody) as MPPayload) : {};
+    payload = payloadRawParsed !== null
+      ? (payloadRawParsed as unknown as MPPayload)
+      : (rawBody.length ? (JSON.parse(rawBody) as MPPayload) : {});
   } catch {
     payload = {};
   }
@@ -142,7 +166,14 @@ export async function POST(req: NextRequest) {
   const mockPayment = (payload as Record<string, unknown>)._mock as
     | MPPayment
     | undefined;
-  if (hasMercadoPagoCredentials()) {
+  // B#23 FIX: Si el request trae _mock inline (dev testing), LO USAMOS DIRECTAMENTE
+  // como fuente de verdad SIN llamar mpPayment.get() ni requerir la API real.
+  if (hasMockInline && mockPayment) {
+    console.warn(
+      `[mercadopago/webhook] usando _mock inline como payment ${paymentId ?? "inline"} E2E testing.`
+    );
+    payment = mockPayment;
+  } else if (hasMercadoPagoCredentials()) {
     try {
       const mpResp = await mpPayment.get({
         id: paymentId
