@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import CountdownTimer from "@/components/checkout/CountdownTimer";
 import CheckoutPaymentButton from "@/components/checkout/CheckoutPaymentButton";
+import MPPaymentWatcherOverlay from "@/components/checkout/MPPaymentWatcherOverlay";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -666,13 +667,23 @@ export default async function CheckoutPage({
 
                   <CheckoutPaymentButton
                     reservaId={reservaId}
-                    rifaId={rifa_id}
+                    rifaId={rifa.id}
                     numbers={numbersArr}
                     total={total}
                     currency={currency}
                     payerEmail={payerEmail}
                     payerName={payerName}
                     payerPhone={payerPhone}
+                  />
+
+                  <MPPaymentWatcherOverlay
+                    reservaId={reservaId}
+                    rifaId={rifa.id}
+                    initialStatus={(reservas[0]?.status as "reserved") ?? "reserved"}
+                    numbers={numbersArr}
+                    unitPrice={unitPrice}
+                    totalAmount={total}
+                    currency={currency}
                   />
 
                   {isDemo && (
