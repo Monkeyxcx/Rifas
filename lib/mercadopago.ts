@@ -68,7 +68,7 @@ export async function createPreference(input: CreatePreferenceInput) {
       payer: input.payer,
       external_reference: input.externalReference,
       metadata: input.metadata,
-      backUrls: input.backUrls ?? {
+      back_urls: input.backUrls ?? {
         success: `${baseUrl}/checkout/success`,
         pending: `${baseUrl}/checkout/pending`,
         failure: `${baseUrl}/checkout/failure`
@@ -76,8 +76,9 @@ export async function createPreference(input: CreatePreferenceInput) {
       notification_url:
         input.notificationUrl ||
         `${baseUrl}/api/mercadopago/webhook?src=mp`,
-      autoReturn: "approved",
-      binary_mode: false,
+      auto_return: "approved",
+      binary_mode: true,
+      purpose: "checkout",
       expires: input.expires ?? true,
       expiration_date_from: input.expirationDateFrom,
       expiration_date_to:

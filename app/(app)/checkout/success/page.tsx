@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/server";
 import type { Rifa, RifaStatus } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
+import SuccessRedirectCountdown from "@/components/checkout/SuccessRedirectCountdown";
 
 export const metadata = {
   title: "Pago aprobado · RifasCenter",
@@ -169,6 +170,7 @@ export default async function CheckoutSuccessPage({
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 via-emerald-50/40 to-slate-50">
       <div className="container mx-auto max-w-4xl px-4 py-10 lg:py-14">
+        <SuccessRedirectCountdown target="/mis-rifas/participando" seconds={8} />
         <div className="mb-6 flex items-center gap-2 text-xs font-medium text-slate-500">
           <Link
             href="/rifas"
