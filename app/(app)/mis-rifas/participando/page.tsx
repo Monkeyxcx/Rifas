@@ -1,25 +1,25 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import type { PagoStatus, ReservaStatus, Rifa, RifaStatus } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import {
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
-  CreditCard,
-  FileCheck2,
-  Gift,
-  PartyPopper,
-  Ticket,
-  Trophy
+    CalendarDays,
+    CheckCircle2,
+    Clock3,
+    CreditCard,
+    FileCheck2,
+    Gift,
+    PartyPopper,
+    Ticket,
+    Trophy
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -91,6 +91,7 @@ type Participacion = {
   pagoDate: string;
   monto: number;
   ticket: string;
+  expired?: boolean;
 };
 
 function mapRifaRow(r: RifaParticipacionJoined): Rifa {
@@ -168,10 +169,18 @@ async function loadParticipaciones(): Promise<Participacion[]> {
   const rows = (data ?? []) as unknown as ReservaRow[];
 
   const grouped = new Map<string, Participacion>();
+  const now = new Date();
   for (const row of rows) {
     const rifaId = row.rifa_id;
     const existing = grouped.get(rifaId);
-    const statusNow = mapReservaToPagoStatus(row.status);
+    let statusNow = mapReservaToPagoStatus(row.status);
+    // B#24 FIX: Si status=reserved pero ya pasó expires_at → vencida = rejected
+    // con flag .expired para diferenciar la UI del badge (Vencida vs Pago rechazado)
+    let rowExpired = false;
+    if (row.status === "reserved" && new Date(row.expires_at) <= now) {
+      statusNow = "rejected";
+      rowExpired = true;
+    }
     const priority: Record<PagoStatus, number> = {
       approved: 5,
       in_process: 4,
@@ -189,11 +198,13 @@ async function loadParticipaciones(): Promise<Participacion[]> {
         pagoStatus: statusNow,
         pagoDate: row.created_at,
         monto: row.rifa.number_price,
-        ticket: `TCK-RIF-${rifaId.slice(0, 6).toUpperCase()}-${new Date(row.created_at).getFullYear()}`
+        ticket: `TCK-RIF-${rifaId.slice(0, 6).toUpperCase()}-${new Date(row.created_at).getFullYear()}`,
+        expired: rowExpired
       });
     } else {
       existing.numbers.push(row.number);
       existing.monto += row.rifa.number_price;
+      if (rowExpired) existing.expired = true;
       if (priority[statusNow] > priority[existing.pagoStatus]) {
         existing.pagoStatus = statusNow;
         existing.reservaId = row.id;
@@ -223,7 +234,18 @@ export default async function MisRifasParticipandoPage() {
   const totalInvertido = participaciones.reduce((acc, p) => acc + p.monto, 0);
   const ganadas = 0;
 
-  const statusBadge = (s: PagoStatus) => {
+  const statusBadge = (s: PagoStatus, expired?: boolean) => {
+    if (expired && (s === "rejected" || s === "pending" || s === "in_process")) {
+      return (
+        <Badge
+          variant="secondary"
+          className="!bg-slate-200/90 !text-slate-700 !border !border-slate-300"
+        >
+          <Clock3 className="mr-1 h-3 w-3" />
+          Vencida
+        </Badge>
+      );
+    }
     switch (s) {
       case "approved":
         return (
@@ -444,7 +466,7 @@ export default async function MisRifasParticipandoPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                          {statusBadge(p.pagoStatus)}
+                          {statusBadge(p.pagoStatus, p.expired)}
                           <Badge variant="secondary" className="font-numbers tabular-nums">
                             {p.ticket}
                           </Badge>
@@ -525,7 +547,7 @@ export default async function MisRifasParticipandoPage() {
                         )}
                       </div>
                       <div className="flex flex-col gap-2 pt-1">
-                        {(p.pagoStatus === "in_process" || p.pagoStatus === "pending") && (
+                        {(p.pagoStatus === "in_process" || p.pagoStatus === "pending") && !p.expired && (
                           <Button
                             asChild
                             className="w-full !h-10 !bg-gradient-to-r from-brand-gold via-rose-500 to-brand-violet !text-white font-black shadow-cta shadow-rose-500/30"
@@ -535,6 +557,17 @@ export default async function MisRifasParticipandoPage() {
                             >
                               <CreditCard className="mr-1.5 h-4 w-4" />
                               Continuar pago
+                            </Link>
+                          </Button>
+                        )}
+                        {p.expired && (
+                          <Button
+                            asChild
+                            className="w-full !h-10 !bg-slate-800 hover:!bg-slate-900 !text-white font-bold shadow"
+                          >
+                            <Link href={`/rifas/${p.rifa.id}`}>
+                              <Clock3 className="mr-1.5 h-4 w-4" />
+                              Seleccionar nuevos números
                             </Link>
                           </Button>
                         )}
