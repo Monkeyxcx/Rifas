@@ -261,17 +261,35 @@ export async function POST(req: NextRequest) {
     Math.round(totalAmount * 0.03);
   const netAmount = payment.net_received_amount ?? totalAmount - feeAmount;
 
-  // 4. Supabase side-effects (best-effort; si falla, MP reintenta luego)
+  // ==============================================
+  // B#26: Variables trazabilidad side-effects (scope for final response JSON)
+  // Declarado ANTES del if hasMercadoPagoCredentials() para referenciar en el
+  // response JSON que está en el ámbito función (fuera de condicionales).
+  // ==============================================
+  let sideEffectsOk = true as boolean;
+  let sideEffectsErrMsg: string | undefined = undefined;
+  let errCodePostgres: string | undefined = undefined;
+  let pgConstraintName: string | undefined = undefined;
+  // Postgres SQLSTATE NON-TRANSIENT: 200 OK MP NO reintenta webhook
+  const PG_NON_TRANSIENT_CODES = new Set([
+    "23505","23502","23503","23514","22P02","42601","42703","42P01"
+  ]);
+  // TRANSIENT: 500 => MP sí reintenta con backoff (conexión, timeout, DB restart)
+  const PG_TRANSIENT_CODES = new Set([
+    "53300","53400","57P01","57014","08000","08003","08006","57P02","57P03","58030"
+  ]);
+  let httpStatusOverride: 200 | 500 = 200;
+  let alreadyProcessed = false;
+  let rifaCancelledNoId = false;
+
+  // 4. Supabase side-effects (best-effort; si falla con transient => MP retry 500)
   let user_id: string | null = null;
   if (hasMercadoPagoCredentials() && (rifaIdRaw || reservaIdRaw)) {
     try {
       const supabase = createServiceClient();
       type SbRow = Record<string, unknown>;
-      // Supabase JS SDK es fluido pero los chain types varían entre versiones.
-      // Este único cast evita romper TS en cada minor bump de @supabase/* y
-      // además satisface @typescript-eslint/no-explicit-any sin desactivarlo global.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sb = supabase as any;
+      const sb = supabase as unknown as any;
 
       async function q<T = unknown>(
         prom: Promise<{ data: T | null; error: unknown }>
@@ -281,7 +299,9 @@ export async function POST(req: NextRequest) {
         return data;
       }
 
-      type ReservaLookupRow = SbRow & { user_id?: string; rifa_id?: string; number?: string };
+      type ReservaLookupRow = SbRow & {
+        user_id?: string; rifa_id?: string; number?: string;
+      };
 
       // 4a. Resolver rifa_id + user_id desde reserva_id si falta alguno
       if (reservaIdRaw && (!rifaIdRaw || !user_id)) {
@@ -298,7 +318,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 4b. Buscar el user_id por las reservas si tenemos rifa + numbers reserved
+      // 4b. Buscar user_id por reservas (rifa + numbers reserved)
       if (!user_id && numbers.length && rifaIdRaw) {
         const list = (await q<ReservaLookupRow[]>(
           sb
@@ -312,69 +332,133 @@ export async function POST(req: NextRequest) {
       }
 
       if (!rifaIdRaw) {
+        rifaCancelledNoId = true;
         console.warn("[mercadopago/webhook] sin rifa_id resoluble — side-effects cancelados.");
       } else {
-        // 4c. Insert Pago
-        const pagoId = generateUUID();
-        const pagoRow = {
-          id: pagoId,
-          rifa_id: rifaIdRaw,
-          user_id,
-          reserva_id: reservaIdRaw,
-          mercado_pago_payment_id: String(payment.id ?? ""),
-          mercado_pago_preference_id: null,
-          external_reference: externalReference || null,
-          status,
-          amount: totalAmount,
-          fee_amount: feeAmount,
-          net_received_amount: netAmount,
-          payment_method: payment.payment_method_id ?? null,
-          payment_type: payment.payment_type_id ?? null,
-          installments: payment.installments ?? 1,
-          payer_email: payerEmail,
-          mercado_pago_raw: payment,
-          paid_at: payment.date_approved ?? null
-        };
-        await q(sb.from("pagos").insert(pagoRow));
+        try {
+          // 4c. Insert Pago
+          const pagoId = generateUUID();
+          const pagoRow = {
+            id: pagoId,
+            rifa_id: rifaIdRaw,
+            user_id,
+            reserva_id: reservaIdRaw,
+            mercado_pago_payment_id: String(payment.id ?? ""),
+            mercado_pago_preference_id: null,
+            external_reference: externalReference || null,
+            status,
+            amount: totalAmount,
+            fee_amount: feeAmount,
+            net_received_amount: netAmount,
+            payment_method: payment.payment_method_id ?? null,
+            payment_type: payment.payment_type_id ?? null,
+            installments: payment.installments ?? 1,
+            payer_email: payerEmail,
+            mercado_pago_raw: payment,
+            paid_at: payment.date_approved ?? null
+          };
+          await q(sb.from("pagos").insert(pagoRow));
 
-        // 4d. Si approved → actualizar reservas a paid
-        if (status === "approved") {
-          const newStatusPaid: ReservaStatus = "paid";
-          const nowIso = new Date().toISOString();
-          if (rifaIdRaw && numbers.length) {
-            await q(
-              sb
-                .from("reservas")
-                .update({ status: newStatusPaid, updated_at: nowIso })
-                .eq("rifa_id", rifaIdRaw)
-                .in("number", numbers)
-            );
+          // 4d. Si approved → actualizar reservas a paid
+          if (status === "approved") {
+            const newStatusPaid: ReservaStatus = "paid";
+            const nowIso = new Date().toISOString();
+            if (rifaIdRaw && numbers.length) {
+              await q(
+                sb
+                  .from("reservas")
+                  .update({ status: newStatusPaid, updated_at: nowIso })
+                  .eq("rifa_id", rifaIdRaw)
+                  .in("number", numbers)
+              );
+            }
+
+            // 4e. Notificación pago_aprobado
+            if (user_id) {
+              const notiRow = {
+                id: generateUUID(),
+                user_id,
+                rifa_id: rifaIdRaw,
+                type: "pago_aprobado",
+                title: "¡Pago aprobado! 🎉",
+                message: `Tu pago por ${numbers.length} número${numbers.length === 1 ? "" : "s"} (${numbers.join(", ")}) fue aprobado exitosamente. Revisa mis rifas para ver tu ticket oficial.`,
+                action_url: "/mis-rifas/participando",
+                read_at: null,
+                created_at: new Date().toISOString()
+              };
+              await q(sb.from("notifications").insert(notiRow));
+              console.log(
+                `[mercadopago/webhook] side-effects OK pago id=${payment.id} status=approved pagos.pago_id=${pagoId}`
+              );
+            }
           }
+        } catch (err) {
+          // B#26: catch de los side-effects DB con clasificación de error
+          sideEffectsOk = false;
+          const errObj = err as {
+            code?: string; message?: string; constraint?: string;
+            details?: string; error?: string;
+          };
+          errCodePostgres = errObj.code;
+          pgConstraintName = errObj.constraint;
+          sideEffectsErrMsg = errObj.message ?? errObj.error ?? String(err);
 
-          // 4e. INSERT Notificación type = pago_aprobado
-          if (user_id) {
-            const notiRow = {
-              id: generateUUID(),
-              user_id,
-              rifa_id: rifaIdRaw,
-              type: "pago_aprobado",
-              title: "¡Pago aprobado! 🎉",
-              message: `Tu pago por ${numbers.length} número${numbers.length === 1 ? "" : "s"} (${numbers.join(", ")}) fue aprobado exitosamente. Revisa mis rifas para ver tu ticket oficial.`,
-              action_url: "/mis-rifas/participando",
-              read_at: null,
-              created_at: new Date().toISOString()
-            };
-            await q(sb.from("notifications").insert(notiRow));
-            console.log(
-              `[mercadopago/webhook] side-effects OK pago id=${payment.id} status=approved pagos.pago_id=${pagoId}`
+          const is23505 = errCodePostgres === "23505";
+          const isPagoDuplicateUnique = is23505 &&
+            (pgConstraintName === "pagos_mercado_pago_payment_id_key" ||
+              (typeof sideEffectsErrMsg === "string" &&
+                sideEffectsErrMsg.toLowerCase().includes("mercado_pago_payment_id")));
+
+          if (isPagoDuplicateUnique) {
+            // Pago ya procesado en webhook anterior (duplicate delivery)
+            alreadyProcessed = true;
+            sideEffectsOk = true;
+            httpStatusOverride = 200;
+            console.warn(
+              `[mercadopago/webhook] B#26 duplicate delivery pago ${payment.id} (23505 ${pgConstraintName}). 200 + already_processed:true.`
+            );
+          } else if (is23505) {
+            // Otra unique violation (no duplicate payment_id)
+            httpStatusOverride = 200;
+            console.error(
+              `[mercadopago/webhook] B#26 23505 unique constraint=${pgConstraintName} pago ${payment.id}. 200 side_effects:failed.`,
+              err
+            );
+          } else if (errCodePostgres && PG_TRANSIENT_CODES.has(errCodePostgres)) {
+            // Error transitorio DB => 500 para que MP RETRY webhook
+            httpStatusOverride = 500;
+            console.error(
+              `[mercadopago/webhook] B#26 TRANSIENT code=${errCodePostgres} pago ${payment.id}. HTTP 500 MP retry.`,
+              err
+            );
+          } else if (errCodePostgres && PG_NON_TRANSIENT_CODES.has(errCodePostgres)) {
+            // Error no transitorio (null, FK, syntax, check) => 200 failed NO retry
+            httpStatusOverride = 200;
+            console.error(
+              `[mercadopago/webhook] B#26 NON-TRANSIENT code=${errCodePostgres} pago ${payment.id}. 200 side_effects:failed.`,
+              err
+            );
+          } else {
+            // Otros errores desconocidos
+            httpStatusOverride = 200;
+            console.error(
+              `[mercadopago/webhook] B#26 UNKNOWN error pago ${payment.id} status=${status}.`,
+              err
             );
           }
         }
       }
-    } catch (err) {
+    } catch (outerErr) {
+      // B#26 OUTER catch: excepciones fuera del inner side-effects try
+      // (ej: createServiceClient no exporta, auth.getUser falla, etc)
+      sideEffectsOk = false;
+      const outerObj = outerErr as { code?: string; message?: string; error?: string };
+      errCodePostgres = outerObj.code ?? undefined;
+      sideEffectsErrMsg = outerObj.message ?? outerObj.error ?? String(outerErr);
+      httpStatusOverride = 200;
       console.error(
-        `[mercadopago/webhook] side-effects supabase fallaron pago ${payment.id} status=${status}`,
-        err
+        `[mercadopago/webhook] B#26 OUTER wrapper side-effects falló (fuera inner try). code=${errCodePostgres ?? "none"}.`,
+        outerErr
       );
     }
   } else {
@@ -393,9 +477,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // B#26: Calcular side_effects final string status
+  let sideEffectsLabel: string;
+  if (!hasMercadoPagoCredentials()) {
+    sideEffectsLabel = "skipped (mock mode)";
+  } else if (rifaCancelledNoId) {
+    sideEffectsLabel = "cancelled (missing rifa_id)";
+  } else if (alreadyProcessed) {
+    sideEffectsLabel = "completed (already_processed duplicate webhook delivery)";
+  } else if (sideEffectsOk) {
+    sideEffectsLabel = "completed";
+  } else {
+    sideEffectsLabel = "failed";
+  }
+  // Status HTTP final: transient => 500 retry, otherwise 200
+  const finalStatus: 200 | 500 = httpStatusOverride;
+
   return NextResponse.json(
     {
-      ok: true,
+      ok: finalStatus === 200,
       received: true,
       action,
       payment_id: paymentId,
@@ -407,11 +507,18 @@ export async function POST(req: NextRequest) {
       amount: totalAmount,
       fee: feeAmount,
       net: netAmount,
-      side_effects: hasMercadoPagoCredentials()
-        ? "attempted"
-        : "skipped (mock mode)"
+      side_effects: sideEffectsLabel,
+      side_effects_success: hasMercadoPagoCredentials()
+        ? sideEffectsOk
+        : true,
+      side_effects_error: sideEffectsErrMsg ?? undefined,
+      already_processed: alreadyProcessed,
+      _b26_diag:
+        process.env.NODE_ENV !== "production"
+          ? { err_pg_code: errCodePostgres ?? null, pg_constraint: pgConstraintName ?? null }
+          : undefined
     },
-    { status: 200 }
+    { status: finalStatus }
   );
 }
 
