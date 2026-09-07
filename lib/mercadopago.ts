@@ -54,10 +54,12 @@ export interface CreatePreferenceInput {
 
 export async function createPreference(input: CreatePreferenceInput) {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const isLocalhost =
+    /(^|\.)localhost$/i.test(baseUrl) || /:\/\/localhost(\/|:)/i.test(baseUrl);
   const items = input.items.map((it) => ({
     id: it.id,
     title: it.title,
-    description: it.description,
+    ...(it.description ? { description: it.description } : {}),
     quantity: it.quantity,
     unit_price: it.unit_price,
     currency_id: it.currency_id || "COP",
@@ -67,35 +69,49 @@ export async function createPreference(input: CreatePreferenceInput) {
   if (input.payer.name) payer.name = input.payer.name;
   if (input.payer.surname) payer.surname = input.payer.surname;
   if (input.payer.phone && (input.payer.phone.number || input.payer.phone.area_code)) {
-    payer.phone = {
-      ...(input.payer.phone.area_code ? { area_code: String(input.payer.phone.area_code).replace(/\D/g, "").slice(0, 4) } : {}),
-      ...(input.payer.phone.number ? { number: String(input.payer.phone.number).replace(/\D/g, "").slice(0, 20) } : {})
-    };
+    const area = input.payer.phone.area_code
+      ? String(input.payer.phone.area_code).replace(/\D/g, "").slice(0, 4)
+      : undefined;
+    const num = input.payer.phone.number
+      ? String(input.payer.phone.number).replace(/\D/g, "").slice(0, 20)
+      : undefined;
+    const p: Record<string, unknown> = {};
+    if (area) p.area_code = area;
+    if (num) p.number = num;
+    if (Object.keys(p).length > 0) payer.phone = p;
   }
   const defaultBackUrls = {
     success: `${baseUrl}/checkout/success`,
     pending: `${baseUrl}/checkout/pending`,
     failure: `${baseUrl}/checkout/failure`
   };
+  const backUrlsVal = input.backUrls
+    ? { ...defaultBackUrls, ...input.backUrls }
+    : defaultBackUrls;
+  const notificationUrlVal =
+    input.notificationUrl || `${baseUrl}/api/mercadopago/webhook?src=mp`;
+
   const body: Record<string, unknown> = {
     items,
     payer,
     external_reference: input.externalReference,
-    ...(input.metadata && Object.keys(input.metadata).length ? { metadata: input.metadata } : {}),
-    back_urls: input.backUrls ? { ...defaultBackUrls, ...input.backUrls } : defaultBackUrls,
-    notification_url:
-      input.notificationUrl ||
-      `${baseUrl}/api/mercadopago/webhook?src=mp`,
-    auto_return: "approved",
-    binary_mode: true,
-    statement_descriptor:
-      process.env.NEXT_PUBLIC_APP_NAME || "RifasCenter",
-    expires: input.expires ?? true,
-    ...(input.expirationDateFrom ? { expiration_date_from: input.expirationDateFrom } : {}),
-    expiration_date_to:
-      input.expirationDateTo ??
-      new Date(Date.now() + 15 * 60 * 1000).toISOString()
+    metadata: input.metadata && Object.keys(input.metadata).length
+      ? input.metadata
+      : { platform: "RifasCenter" },
+    back_urls: backUrlsVal,
+    notification_url: notificationUrlVal,
+    ...(!isLocalhost ? { auto_return: "approved" } : {}),
+    statement_descriptor: process.env.NEXT_PUBLIC_APP_NAME || "RifasCenter"
   };
+  if (input.expires !== false) {
+    body.expires = true;
+    const expiresTo =
+      input.expirationDateTo ?? new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    body.expiration_date_to = expiresTo;
+    if (input.expirationDateFrom) {
+      body.expiration_date_from = input.expirationDateFrom;
+    }
+  }
   return mpPreference.create({
     body: body as unknown as Parameters<typeof mpPreference.create>[0]["body"]
   });
