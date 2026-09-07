@@ -5,6 +5,7 @@ import { CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+import { flagReservaAsPendingMP } from "@/components/checkout/MPPaymentWatcherOverlay";
 
 interface Props {
   reservaId: string;
@@ -54,7 +55,18 @@ export default function CheckoutPaymentButton({
         );
         return;
       }
-      window.location.href = body.init_point;
+      // IMPORTANTE: Abrir MP en NUEVA pestaña para que la actual quede
+      // con el MPPaymentWatcherOverlay polling detecte el pago y redirija.
+      // En localhost testing MP sandbox NO hace auto_return por política,
+      // así que el user NUNCA volvería automáticamente si navegamos away.
+      try {
+        flagReservaAsPendingMP(reservaId);
+      } catch { /* ignore */ }
+      const mpWin = window.open(body.init_point, "_blank", "noopener,noreferrer");
+      if (!mpWin) {
+        // Fallback si popup blocker: sí navegar away
+        window.location.href = body.init_point;
+      }
     } catch (e) {
       console.error(e);
       toast.error("Error de conexión. Intenta nuevamente en 30 segundos.");
