@@ -102,25 +102,34 @@ async function getCurrentPerfil(): Promise<{
 
     const { data: partRows, error: partErr } = await supabase
       .from("reservas")
-      .select("rifa_id,number,status,rifa:rifas(number_price)")
+      .select("rifa_id,number,status,expires_at,rifa:rifas(number_price)")
       .eq("user_id", user.id)
       .in("status", ["reserved", "paid"]);
     let tickets = 0;
     let numerosComprados = 0;
     let invertido = 0;
     const rifaKeys = new Set<string>();
+    // B#22 FIX: Contar/sumar SOLO:
+    //  - status = "paid" (compras confirmadas, sin fecha límite)
+    //  - status = "reserved" PERO expires_at > NOW() (reserva válida aún dentro de 15 min TTL)
     if (!partErr && partRows) {
+      const now = new Date();
       for (const p of partRows as Array<{
         rifa_id: string;
         number: string;
         status: string;
+        expires_at?: string | null;
         rifa?: { number_price: number } | null;
       }>) {
+        const esPaid = p.status === "paid";
+        const esReservedValido =
+          p.status === "reserved" &&
+          !!p.expires_at &&
+          new Date(p.expires_at) > now;
+        if (!esPaid && !esReservedValido) continue;
         rifaKeys.add(p.rifa_id);
-        if (p.status === "paid" || p.status === "reserved") {
-          numerosComprados += 1;
-          invertido += Number(p.rifa?.number_price || 0);
-        }
+        numerosComprados += 1;
+        invertido += Number(p.rifa?.number_price || 0);
       }
       tickets = rifaKeys.size;
     }
