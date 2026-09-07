@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Poppins } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const inter = Inter({
@@ -88,6 +89,88 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${inter.variable} ${poppins.variable}`}>
+      {/*
+        Script ANTES de React hydrate: elimina atributos data-trae-ref="eX"
+        que el IDE/extensión Trae inyecta en el DOM SSR antes de hidratar.
+        Estos atributos provocan "Hydration Mismatch" porque React no los
+        generó en el virtual DOM client-side.
+        Se ejecuta en strategy="beforeInteractive" → garantiza que corre
+        antes que cualquier código de React (antes que hidrate el primer componente).
+        También limpia data-trae-* genéricos por si aparecen en el futuro.
+      */}
+      <Script id="trae-cleanup-prehydrate" strategy="beforeInteractive">
+        {`(function(){
+  try {
+    var doc = document;
+    // -------- 1) cleanup inicial antes hydrate --------------------------------
+    var root = doc.documentElement;
+    /** @param {Element|HTMLElement} rootEl */
+    function cleanTraeAttrs(rootEl) {
+      if (!rootEl || !rootEl.querySelectorAll) return 0;
+      var rem = 0;
+      var attrAll = rootEl.querySelectorAll('*');
+      var m = attrAll.length, j = 0, node, attrs, ai, att;
+      for (j = 0; j < m; j++) {
+        node = attrAll[j];
+        if (!node || node.nodeType !== 1 || !node.hasAttributes) continue;
+        attrs = node.attributes;
+        for (ai = attrs.length - 1; ai >= 0; ai--) {
+          att = attrs[ai];
+          if (att && typeof att.name === 'string' && att.name.indexOf('data-trae-') === 0) {
+            node.removeAttribute(att.name); rem++;
+          }
+        }
+      }
+      return rem;
+    }
+    var removed = cleanTraeAttrs(root);
+
+    // -------- 2) MutationObserver live cleanup para navegaciones SPA -----
+    // El browser/extensión Trae puede volver a inyectar data-trae-ref en
+    // navegaciones client-side. Observar atributos agregados y remover.
+    if (typeof MutationObserver !== 'undefined') {
+      var obs = new MutationObserver(function (mutations) {
+        try {
+          var k = 0, L = mutations.length, mut, nodes, ni, nL, nd, attrs, ai, att;
+          for (k = 0; k < L; k++) {
+            mut = mutations[k];
+            // Attribute added
+            if (mut.type === 'attributes' && mut.target && mut.target.nodeType === 1) {
+              attrs = mut.target.attributes;
+              if (attrs) {
+                for (ai = attrs.length - 1; ai >= 0; ai--) {
+                  att = attrs[ai];
+                  if (att && typeof att.name === 'string' && att.name.indexOf('data-trae-') === 0) {
+                    mut.target.removeAttribute(att.name);
+                  }
+                }
+              }
+            }
+            // Nodos nuevos insertados
+            nodes = mut.addedNodes;
+            if (nodes && nodes.length) {
+              nL = nodes.length;
+              for (ni = 0; ni < nL; ni++) {
+                nd = nodes[ni];
+                if (nd && nd.nodeType === 1) cleanTraeAttrs(nd);
+              }
+            }
+          }
+        } catch (__e2) { /* ignore */ }
+      });
+      obs.observe(doc.documentElement, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['data-trae-ref','data-trae-id','data-trae-ctx']
+      });
+      window.__RIFAS_TRAE_OBSERVER__ = obs;
+    }
+
+    window.__RIFAS_TRAE_CLEANUP_DONE__ = { removed: removed, at: Date.now() };
+  } catch (__e) { /* no-op */ }
+})();`}
+      </Script>
       <body
         className={`${inter.className} font-sans antialiased min-h-screen flex flex-col bg-slate-50`}
       >
