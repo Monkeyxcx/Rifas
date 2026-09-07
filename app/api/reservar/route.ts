@@ -276,6 +276,35 @@ export async function POST(req: Request) {
     );
   } catch (err) {
     console.error("[reservar] rpc error", err);
+    const raw =
+      typeof err === "object" && err !== null
+        ? (err as {
+            code?: unknown;
+            message?: unknown;
+            details?: unknown;
+            postgres?: { code?: unknown; message?: unknown } | null;
+          })
+        : null;
+    const message = err instanceof Error ? err.message : "";
+    const pg = raw?.postgres ?? null;
+    const code = String(raw?.code ?? pg?.code ?? "");
+    const dbMsg = String(raw?.message ?? pg?.message ?? raw?.details ?? "");
+    const isDuplicate =
+      code === "23505" ||
+      /duplicate\s+key|unique\s+constraint|reservas_unique_active_per_rifa|reservas_one_active_per_rifa/i.test(
+        message + " " + dbMsg
+      );
+    if (isDuplicate) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Uno o más números seleccionados ya fueron vendidos o reservados. Actualiza la página para ver los disponibles.",
+          conflict: true
+        },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       {
         ok: false,
