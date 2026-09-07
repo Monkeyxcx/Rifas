@@ -89,22 +89,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${inter.variable} ${poppins.variable}`}>
-      {/*
-        Script ANTES de React hydrate: elimina atributos data-trae-ref="eX"
-        que el IDE/extensión Trae inyecta en el DOM SSR antes de hidratar.
-        Estos atributos provocan "Hydration Mismatch" porque React no los
-        generó en el virtual DOM client-side.
-        Se ejecuta en strategy="beforeInteractive" → garantiza que corre
-        antes que cualquier código de React (antes que hidrate el primer componente).
-        También limpia data-trae-* genéricos por si aparecen en el futuro.
-      */}
-      <Script id="trae-cleanup-prehydrate" strategy="beforeInteractive">
-        {`(function(){
+      <head>
+        {/*
+          Script ANTES de React hydrate: elimina atributos data-trae-ref="eX"
+          que el IDE/extensión Trae inyecta en el DOM SSR antes de hidratar.
+          Estos atributos provocan "Hydration Mismatch" porque React no los
+          generó en el virtual DOM client-side.
+          strategy="beforeInteractive" REQUIERE estar dentro de <head> en
+          Next.js App Router (de lo contrario lanza warn: no se sabe el orden).
+        */}
+        <Script id="trae-cleanup-prehydrate" strategy="beforeInteractive">
+          {`(function(){
   try {
     var doc = document;
-    // -------- 1) cleanup inicial antes hydrate --------------------------------
-    var root = doc.documentElement;
-    /** @param {Element|HTMLElement} rootEl */
+    /** @param {Element} rootEl @return {number} */
     function cleanTraeAttrs(rootEl) {
       if (!rootEl || !rootEl.querySelectorAll) return 0;
       var rem = 0;
@@ -123,18 +121,15 @@ export default function RootLayout({
       }
       return rem;
     }
-    var removed = cleanTraeAttrs(root);
+    var removed = cleanTraeAttrs(doc.documentElement);
 
-    // -------- 2) MutationObserver live cleanup para navegaciones SPA -----
-    // El browser/extensión Trae puede volver a inyectar data-trae-ref en
-    // navegaciones client-side. Observar atributos agregados y remover.
+    // MutationObserver live cleanup para navegaciones SPA.
     if (typeof MutationObserver !== 'undefined') {
       var obs = new MutationObserver(function (mutations) {
         try {
           var k = 0, L = mutations.length, mut, nodes, ni, nL, nd, attrs, ai, att;
           for (k = 0; k < L; k++) {
             mut = mutations[k];
-            // Attribute added
             if (mut.type === 'attributes' && mut.target && mut.target.nodeType === 1) {
               attrs = mut.target.attributes;
               if (attrs) {
@@ -146,7 +141,6 @@ export default function RootLayout({
                 }
               }
             }
-            // Nodos nuevos insertados
             nodes = mut.addedNodes;
             if (nodes && nodes.length) {
               nL = nodes.length;
@@ -170,7 +164,8 @@ export default function RootLayout({
     window.__RIFAS_TRAE_CLEANUP_DONE__ = { removed: removed, at: Date.now() };
   } catch (__e) { /* no-op */ }
 })();`}
-      </Script>
+        </Script>
+      </head>
       <body
         className={`${inter.className} font-sans antialiased min-h-screen flex flex-col bg-slate-50`}
       >
