@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Props {
   reservaId: string;
@@ -48,7 +49,7 @@ export default function CheckoutPaymentButton({
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.init_point) {
         console.error("create-preference failed", res.status, body);
-        alert(
+        toast.error(
           `Error al generar el link de pago: ${body.error ?? body.message ?? "Intenta nuevamente"}`
         );
         return;
@@ -56,7 +57,7 @@ export default function CheckoutPaymentButton({
       window.location.href = body.init_point;
     } catch (e) {
       console.error(e);
-      alert("Error de conexión. Intenta nuevamente en 30 segundos.");
+      toast.error("Error de conexión. Intenta nuevamente en 30 segundos.");
     } finally {
       setLoading(false);
     }
