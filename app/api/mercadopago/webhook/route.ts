@@ -303,6 +303,18 @@ export async function POST(req: NextRequest) {
         user_id?: string; rifa_id?: string; number?: string;
       };
 
+      // 4z. Resolver user_id directamente desde metadata.user_id (para mocks o
+      // integraciones donde ya sabemos el user sin necesidad de lookup DB).
+      if (!user_id &&
+          payment &&
+          typeof (payment as unknown as {metadata?: unknown}).metadata === "object" &&
+          (payment as unknown as {metadata?: {user_id?: unknown}}).metadata !== null) {
+        const md = (payment as unknown as {metadata: {user_id?: unknown}}).metadata;
+        if (typeof md.user_id === "string" && /^[0-9a-fA-F-]{36}$/.test(md.user_id)) {
+          user_id = md.user_id;
+        }
+      }
+
       // 4a. Resolver rifa_id + user_id desde reserva_id si falta alguno
       if (reservaIdRaw && (!rifaIdRaw || !user_id)) {
         const reservaRow = (await q<ReservaLookupRow[]>(
@@ -413,6 +425,7 @@ export async function POST(req: NextRequest) {
             // Pago ya procesado en webhook anterior (duplicate delivery)
             alreadyProcessed = true;
             sideEffectsOk = true;
+            sideEffectsErrMsg = undefined; // No hubo error funcional, ya estaba OK antes
             httpStatusOverride = 200;
             console.warn(
               `[mercadopago/webhook] B#26 duplicate delivery pago ${payment.id} (23505 ${pgConstraintName}). 200 + already_processed:true.`
