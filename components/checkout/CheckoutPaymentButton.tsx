@@ -33,6 +33,33 @@ export default function CheckoutPaymentButton({
   const pay = async () => {
     if (loading) return;
     setLoading(true);
+
+    // RC doble pestaña / doble ruta de pago FIX:
+    // Los popup blockers NUNCA permiten window.open después de un
+    // `await fetch()` async porque ya perdió el "user gesture stack".
+    //
+    // Solución canónica: ABRIR VENTANA SÍNCRONA about:blank EN CLICK
+    // SYNC (antes del fetch). Luego cuando tenemos init_point,
+    // hacemos mpWin.location.href = init_point.
+    //
+    // Si popup bloquea el about:blank tampoco → toast y NO navegamos
+    // current tab away (el watcher de polling debe permanecer vivo).
+    let mpWin: Window | null = null;
+    try {
+      mpWin = window.open("about:blank", "_blank", "noopener,noreferrer");
+    } catch {
+      mpWin = null;
+    }
+
+    if (!mpWin) {
+      setLoading(false);
+      toast.error(
+        "Tu navegador bloqueó la ventana de Mercado Pago. " +
+        "Habilita las ventanas emergentes para rifascenter.com y vuelve a intentar."
+      );
+      return;
+    }
+
     try {
       const res = await fetch("/api/mercadopago/create-preference", {
         method: "POST",
@@ -50,25 +77,27 @@ export default function CheckoutPaymentButton({
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.init_point) {
         console.error("create-preference failed", res.status, body);
+        try { mpWin.close(); } catch { /* ignore */ }
         toast.error(
           `Error al generar el link de pago: ${body.error ?? body.message ?? "Intenta nuevamente"}`
         );
         return;
       }
-      // IMPORTANTE: Abrir MP en NUEVA pestaña para que la actual quede
-      // con el MPPaymentWatcherOverlay polling detecte el pago y redirija.
-      // En localhost testing MP sandbox NO hace auto_return por política,
-      // así que el user NUNCA volvería automáticamente si navegamos away.
       try {
         flagReservaAsPendingMP(reservaId);
       } catch { /* ignore */ }
-      const mpWin = window.open(body.init_point, "_blank", "noopener,noreferrer");
-      if (!mpWin) {
-        // Fallback si popup blocker: sí navegar away
-        window.location.href = body.init_point;
+      try {
+        mpWin.location.href = body.init_point;
+      } catch {
+        toast.error(
+          "Error al redirigir a Mercado Pago desde la nueva ventana. " +
+          "Vuelve a intentar pulsando el botón."
+        );
+        try { mpWin.close(); } catch { /* ignore */ }
       }
     } catch (e) {
       console.error(e);
+      try { mpWin.close(); } catch { /* ignore */ }
       toast.error("Error de conexión. Intenta nuevamente en 30 segundos.");
     } finally {
       setLoading(false);
@@ -77,6 +106,7 @@ export default function CheckoutPaymentButton({
 
   return (
     <Button
+      type="button"
       size="lg"
       disabled={loading}
       onClick={pay}
