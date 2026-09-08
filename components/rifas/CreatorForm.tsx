@@ -89,10 +89,13 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
     draw_date_date: isoDateInput(15)
   });
   const [submitting, setSubmitting] = useState(false);
-  const [loadingData, setLoadingData] = useState<boolean>(Boolean(editingId));
+  const [loadingData, setLoadingData] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!editingId) return;
+    if (!editingId) {
+      setLoadingData(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -213,16 +216,24 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
   function canContinue() {
     switch (stepKey) {
       case "datos":
-      default:
-        return form.title.trim().length >= 6;
-      case "premio":
-        return (
-          form.prize_name.trim().length >= 3 &&
-          form.prize_value >= 50_000 &&
-          (!form.is_solidarity || form.cause_name.trim().length >= 3)
-        );
-      case "numeros":
+      default: {
+        const t = form.title.trim();
+        if (t.length < 6) return false;
+        if (/^(asdf|qwer|1234|aaaa|prueba|test|demo)$/i.test(t)) return false;
+        return true;
+      }
+      case "premio": {
+        const pn = form.prize_name.trim();
+        const solidaria = Boolean(form.is_solidarity);
+        const cn = form.cause_name.trim();
+        const base = pn.length >= 3 && form.prize_value >= 50_000;
+        if (!base) return false;
+        if (solidaria && cn.length < 3) return false;
+        return true;
+      }
+      case "numeros": {
         return form.number_price >= 1_000 && form.total_numbers >= 10;
+      }
       case "fechas": {
         const endsOk = !!form.ends_at_date;
         const drawOk = !!form.draw_date_date;
@@ -232,6 +243,21 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
         const draw = new Date(form.draw_date_date + "T19:00:00").getTime();
         return draw > ends;
       }
+    }
+  }
+
+  function hintForMissing(key: StepKey): string {
+    switch (key) {
+      case "datos":
+        return "Título rifa: mínimo 6 caracteres claros.";
+      case "premio":
+        return form.is_solidarity
+          ? "Nombre premio (3+), valor (≥50k) y causa solidaria (3+)."
+          : "Nombre del premio (3+ caracteres) y valor ≥ $50.000 COP.";
+      case "numeros":
+        return "Precio número ≥ $1.000 y total números ≥ 10.";
+      case "fechas":
+        return "Fechas válidas + sorteo después de cierre + instrucciones (10+).";
     }
   }
 
@@ -317,7 +343,11 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-8 lg:grid-cols-5 relative">
+    <form
+      onSubmit={onSubmit}
+      noValidate
+      className="grid gap-8 lg:grid-cols-5 relative"
+    >
       {loadingData && (
         <div className="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-white/70 backdrop-blur-[2px] rounded-2xl">
           <div className="flex flex-col items-center gap-2">
@@ -834,14 +864,19 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
           </CardContent>
         </Card>
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 -mt-1">
           <Button
             type="button"
             variant="ghost"
             onClick={goPrev}
             disabled={stepIndex(stepKey) === 0 || loadingData}
+            className={cn(
+              "relative group"
+            )}
           >
-            ← Atrás
+            <span className="relative z-10 flex items-center gap-1.5">
+              ← Atrás
+            </span>
           </Button>
           <div className="flex items-center gap-2">
             <Button
@@ -878,13 +913,29 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                 </Button>
               </div>
             ) : (
-              <Button
-                type="submit"
-                className="!bg-gradient-to-r from-brand-rose to-brand-violet shadow-cta active:scale-[0.98]"
-                disabled={!canContinue() || loadingData}
-              >
-                Continuar →
-              </Button>
+              <>
+                {!canContinue() && (
+                  <div className="hidden md:flex flex-col items-end gap-1 mr-1">
+                    <span className="text-[11px] font-bold text-brand-rose uppercase tracking-wider">
+                      Falta completar
+                    </span>
+                    <span className="text-[10px] text-slate-500 max-w-[210px] text-right">
+                      {hintForMissing(stepKey)}
+                    </span>
+                  </div>
+                )}
+                <Button
+                  type="submit"
+                  className={cn(
+                    "!bg-gradient-to-r from-brand-rose to-brand-violet shadow-cta active:scale-[0.98] transition",
+                    !canContinue() &&
+                      "group relative before:absolute before:inset-0 before:rounded-[inherit] before:bg-destructive/0 before:transition"
+                  )}
+                  disabled={!canContinue() || loadingData}
+                >
+                  Continuar →
+                </Button>
+              </>
             )}
           </div>
         </div>
