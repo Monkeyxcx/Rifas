@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, PartyPopper, AlertTriangle, Clock3 } from "lucide-react";
+import { CheckCircle2, Loader2, AlertTriangle, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
-import { showSuccess, showWarning } from "@/lib/ui/modals";
+import { showConfirm, showSuccess, showWarning } from "@/lib/ui/modals";
 
 type ReservaStatusResp = {
   ok: boolean;
@@ -129,6 +129,7 @@ export default function MPPaymentWatcherOverlay({
       }
     };
     void tick();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservaId, router, buildSuccessUrl]);
 
   useEffect(() => {
@@ -190,8 +191,28 @@ export default function MPPaymentWatcherOverlay({
                 <Button
                   type="button"
                   size="sm"
+                  className="!h-8 !rounded-xl font-black !bg-gradient-to-br from-brand-rose to-brand-violet !text-white shadow ml-auto"
+                  onClick={async () => {
+                    const open = await showConfirm({
+                      title: "Ya completé el pago",
+                      message:
+                        "¿Marcas el pago como completado?\nRevisaremos inmediatamente el estado con Mercado Pago.",
+                      confirmText: "Revisar pago ahora",
+                      dangerMode: false
+                    });
+                    if (open) {
+                      startedPollingRef.current = false;
+                      startPolling();
+                    }
+                  }}
+                >
+                  Ya completé el pago
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
                   variant="outline"
-                  className="!h-8 !rounded-xl !border-amber-300 !bg-white/70 !text-amber-900 hover:!bg-white font-bold ml-auto"
+                  className="!h-8 !rounded-xl !border-amber-300 !bg-white/70 !text-amber-900 hover:!bg-white font-bold"
                   onClick={() => {
                     startedPollingRef.current = false;
                     startPolling();

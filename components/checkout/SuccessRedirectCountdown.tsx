@@ -29,6 +29,7 @@ export function SuccessRedirectCountdown({
       }
     }, 250);
     return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dismissed, target]);
 
   if (dismissed) return null;
