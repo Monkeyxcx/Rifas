@@ -103,11 +103,14 @@ export function showSuccess(p: {
 
 export function showError(p: {
   title?: string;
-  message: string;
+  message?: string;
   html?: string;
   confirmText?: string;
   onClose?: () => void;
 }) {
+  if (!p.message && !p.html) {
+    p.message = "Intenta nuevamente en unos segundos.";
+  }
   return showAlert({ level: "error", title: p.title ?? "Oops, algo salió mal", ...p });
 }
 
