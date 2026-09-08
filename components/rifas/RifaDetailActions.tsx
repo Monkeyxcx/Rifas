@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, CreditCard, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { showError, showWarning } from "@/lib/ui/modals";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +52,10 @@ export default function RifaDetailActions(props: Props) {
   const reserveAndPay = async () => {
     if (loading) return;
     if (selected.length === 0) {
-      toast.error("Selecciona al menos un número para reservar.");
+      void showWarning({
+        title: "Selecciona números",
+        message: "Elige al menos un número de la cuadrícula para continuar con la reserva."
+      });
       return;
     }
 
@@ -82,9 +85,15 @@ export default function RifaDetailActions(props: Props) {
       });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) {
-        toast.error(
-          `Error al reservar: ${body.error ?? "Intenta en 30 segundos."}`
-        );
+        const msg =
+          body.conflict === true
+            ? body.mensaje ??
+              `Algunos números ya fueron reservados. Actualiza y vuelve a elegir.`
+            : body.error ?? "Intenta nuevamente en 30 segundos.";
+        void showError({
+          title: r.status === 409 ? "Números no disponibles" : "No se pudo reservar",
+          message: msg
+        });
         return;
       }
       const reservaId: string =
@@ -97,7 +106,10 @@ export default function RifaDetailActions(props: Props) {
       );
     } catch (e) {
       console.error(e);
-      toast.error("Error de conexión. Revisa tu internet e intenta nuevamente.");
+      void showError({
+        title: "Error de conexión",
+        message: "Sin conexión al servidor. Revisa tu internet e intenta nuevamente."
+      });
     } finally {
       setLoading(false);
     }

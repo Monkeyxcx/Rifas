@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, PartyPopper, AlertTriangle, Clock3 } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import { showSuccess, showWarning } from "@/lib/ui/modals";
 
 type ReservaStatusResp = {
   ok: boolean;
@@ -96,11 +96,15 @@ export default function MPPaymentWatcherOverlay({
         if (json.ok && json.status === "paid") {
           setUiState("paid");
           cancelled = true;
-          toast.success("¡Pago aprobado! Redirigiendo a tu ticket…", {
-            description: (json.rifa_title ?? "") + (json.numbers?.length ? ` · ${json.numbers.length} números` : ""),
-            icon: <PartyPopper className="h-4 w-4 text-emerald-500" />
+          void showSuccess({
+            title: "¡Pago aprobado! 🎉",
+            html:
+              `Se confirmó tu pago por <b>${formatCurrency(totalAmount, currency)}</b><br/>` +
+              `Rifa: <b>${json.rifa_title ?? ""}</b>` +
+              (json.numbers?.length ? ` · ${json.numbers.length} número(s)` : ""),
+            timer: 2600,
+            onClose: () => router.push(buildSuccessUrl(json))
           });
-          setTimeout(() => router.push(buildSuccessUrl(json)), 900);
           return;
         }
         if (json.ok && (json.status === "expired" || json.status === "cancelled" || json.status === "refunded")) {
@@ -109,9 +113,9 @@ export default function MPPaymentWatcherOverlay({
           return;
         }
         if (json.ok && json.pago && (json.pago.status === "rejected" || json.pago.status === "cancelled")) {
-          toast.warning("Pago rechazado", {
-            description: `Intenta nuevamente con otra tarjeta. Status: ${json.pago.status}.`,
-            icon: <AlertTriangle className="h-4 w-4 text-amber-500" />
+          void showWarning({
+            title: "Pago rechazado",
+            message: `Intenta nuevamente con otra tarjeta. Status banco: ${json.pago.status}.`
           });
         }
       } catch (e) {

@@ -4,8 +4,8 @@ import { useState } from "react";
 import { CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
-import { toast } from "sonner";
 import { flagReservaAsPendingMP } from "@/components/checkout/MPPaymentWatcherOverlay";
+import { showError, showWarning } from "@/lib/ui/modals";
 
 interface Props {
   reservaId: string;
@@ -34,16 +34,6 @@ export default function CheckoutPaymentButton({
     if (loading) return;
     setLoading(true);
 
-    // RC doble pestaña / doble ruta de pago FIX:
-    // Los popup blockers NUNCA permiten window.open después de un
-    // `await fetch()` async porque ya perdió el "user gesture stack".
-    //
-    // Solución canónica: ABRIR VENTANA SÍNCRONA about:blank EN CLICK
-    // SYNC (antes del fetch). Luego cuando tenemos init_point,
-    // hacemos mpWin.location.href = init_point.
-    //
-    // Si popup bloquea el about:blank tampoco → toast y NO navegamos
-    // current tab away (el watcher de polling debe permanecer vivo).
     let mpWin: Window | null = null;
     try {
       mpWin = window.open("about:blank", "_blank", "noopener,noreferrer");
@@ -53,10 +43,11 @@ export default function CheckoutPaymentButton({
 
     if (!mpWin) {
       setLoading(false);
-      toast.error(
-        "Tu navegador bloqueó la ventana de Mercado Pago. " +
-        "Habilita las ventanas emergentes para rifascenter.com y vuelve a intentar."
-      );
+      void showWarning({
+        title: "Ventana bloqueada",
+        message:
+          "Tu navegador bloqueó la ventana de Mercado Pago. Habilita las ventanas emergentes para rifascenter.com y vuelve a intentar."
+      });
       return;
     }
 
@@ -78,27 +69,30 @@ export default function CheckoutPaymentButton({
       if (!res.ok || !body.init_point) {
         console.error("create-preference failed", res.status, body);
         try { mpWin.close(); } catch { /* ignore */ }
-        toast.error(
-          `Error al generar el link de pago: ${body.error ?? body.message ?? "Intenta nuevamente"}`
-        );
+        void showError({
+          title: "No se pudo generar el link de pago",
+          message: body.error ?? body.message ?? "Intenta nuevamente en 10 segundos."
+        });
+        setLoading(false);
         return;
       }
-      try {
-        flagReservaAsPendingMP(reservaId);
-      } catch { /* ignore */ }
+      try { flagReservaAsPendingMP(reservaId); } catch { /* ignore */ }
       try {
         mpWin.location.href = body.init_point;
       } catch {
-        toast.error(
-          "Error al redirigir a Mercado Pago desde la nueva ventana. " +
-          "Vuelve a intentar pulsando el botón."
-        );
         try { mpWin.close(); } catch { /* ignore */ }
+        void showError({
+          title: "Error al abrir Mercado Pago",
+          message: "No se pudo redirigir a Mercado Pago. Vuelve a pulsar el botón."
+        });
       }
     } catch (e) {
       console.error(e);
-      try { mpWin.close(); } catch { /* ignore */ }
-      toast.error("Error de conexión. Intenta nuevamente en 30 segundos.");
+      try { mpWin?.close(); } catch { /* ignore */ }
+      void showError({
+        title: "Error de conexión",
+        message: "Sin conexión con el servidor. Intenta nuevamente en 30 segundos."
+      });
     } finally {
       setLoading(false);
     }

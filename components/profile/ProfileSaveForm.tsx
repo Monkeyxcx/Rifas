@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
+import { showSuccess, showError } from "@/lib/ui/modals";
 import type { Perfil } from "@/lib/types";
 
 type Props = {
@@ -67,13 +67,23 @@ export function ProfileSaveForm({ perfil, email }: Props) {
       });
       if (res.ok) {
         setOk(true);
-        toast.success("Perfil actualizado correctamente 🎉");
+        void showSuccess({
+          title: "Perfil actualizado 🎉",
+          message: "Tus datos se guardaron correctamente.",
+          timer: 2100
+        });
       } else {
         const txt = await res.text();
-        toast.error(txt ? `No se pudo guardar: ${txt.slice(0, 80)}` : "No se pudo actualizar el perfil");
+        void showError({
+          title: "No se pudo guardar el perfil",
+          message: txt ? `Respuesta servidor: ${txt.slice(0, 120)}` : "Intenta de nuevo."
+        });
       }
     } catch {
-      toast.error("Error de conexión al guardar. Revisa tu internet.");
+      void showError({
+        title: "Error de conexión",
+        message: "Sin conexión al servidor. Revisa tu internet e intenta de nuevo."
+      });
     } finally {
       setSaving(false);
     }

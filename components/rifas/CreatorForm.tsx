@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { toast } from "sonner";
+import { showSuccess, showError, showWarning } from "@/lib/ui/modals";
 
 import { cn, formatCurrency, generateRaffleNumbers, padRaffleNumber } from "@/lib/utils";
 import type { Rifa } from "@/lib/types";
@@ -71,6 +71,15 @@ function isoDateInput(offsetDays = 7) {
   return `${y}-${m}-${day}`;
 }
 
+function escapeHtml(s: string) {
+  return (s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 export default function CreatorForm({ editingId }: { editingId?: string | null }) {
   const router = useRouter();
   const [stepKey, setStepKey] = useState<StepKey>("datos");
@@ -92,10 +101,12 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
         const json = await r.json().catch(() => ({})) as Record<string, unknown>;
         if (cancelled) return;
         if (!r.ok || !json.ok) {
-          toast.error(
-            (json as { error?: string }).error ||
-              "No se pudo cargar la rifa para editar."
-          );
+          void showError({
+            title: "No se pudo cargar la rifa",
+            message:
+              (json as { error?: string }).error ||
+              "Intenta de nuevo en 30 segundos."
+          });
           router.replace("/mis-rifas/creadas");
           return;
         }
@@ -118,9 +129,18 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
           draw_instructions: d.draw_instructions ?? prev.draw_instructions,
           country: d.country ?? prev.country
         }));
-        toast.success("Datos cargados. Ya puedes editar los campos.");
+        void showSuccess({
+          title: "Datos cargados",
+          message: "Rifa lista para editar sus campos.",
+          timer: 2200
+        });
       } catch {
-        if (!cancelled) toast.error("Error cargando la rifa. Intenta de nuevo.");
+        if (!cancelled) {
+          void showError({
+            title: "Error cargando rifa",
+            message: "No se pudieron descargar los datos. Intenta de nuevo."
+          });
+        }
       } finally {
         if (!cancelled) setLoadingData(false);
       }
@@ -218,7 +238,10 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canContinue() && stepKey !== "fechas") {
-      toast.error("Revisa los campos antes de continuar");
+      void showWarning({
+        title: "Revisa los campos",
+        message: "Completa los campos obligatorios antes de pasar al siguiente paso."
+      });
       return;
     }
     if (stepKey !== "fechas") {
@@ -226,7 +249,10 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
       return;
     }
     if (loadingData) {
-      toast.error("Cargando datos para editar, espera un momento.");
+      void showWarning({
+        title: "Espera un momento",
+        message: "Todavía se están cargando los datos para editar."
+      });
       return;
     }
     setSubmitting(true);
@@ -262,17 +288,28 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
       });
       const json = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string; rifa_id?: string; rifa?: { id: string } };
       if (!r.ok || !json.ok) {
-        toast.error(json.error || `Error al ${isEditing ? "actualizar" : "crear"} la rifa.`);
         setSubmitting(false);
+        void showError({
+          title: isEditing ? "No se actualizó la rifa" : "No se pudo crear la rifa",
+          message: json.error || "Intenta nuevamente en 10 segundos."
+        });
         return;
       }
       const rid = json.rifa_id ?? json.rifa?.id;
-      toast.success(isEditing ? "¡Rifa actualizada correctamente! 🎉" : "¡Rifa creada exitosamente! 🎉");
-      setTimeout(() => {
-        router.push(isEditing ? `/rifas/${rid}` : "/mis-rifas/creadas");
-      }, 600);
+      void showSuccess({
+        title: isEditing ? "¡Rifa actualizada! 🎉" : "¡Rifa creada! 🎉",
+        html: isEditing
+          ? "Los cambios se guardaron correctamente. Redirigiendo…"
+          : `Tu rifa <b>${escapeHtml(form.title)}</b> está lista y visible. Redirigiendo…`,
+        timer: 2400,
+        onClose: () => router.push(isEditing ? `/rifas/${rid}` : "/mis-rifas/creadas")
+      });
     } catch (err) {
-      toast.error("Ocurrió un error inesperado al guardar la rifa.");
+      setSubmitting(false);
+      void showError({
+        title: "Error inesperado",
+        message: "Ocurrió un error guardando la rifa. Intenta de nuevo."
+      });
       console.error("[CreatorForm submit error]", err);
     } finally {
       // Do NOT setSubmitting(false) before redirect so user sees state "Creando..."

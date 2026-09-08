@@ -9,6 +9,7 @@ import { Ticket, ArrowLeft, Lock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { enableAuthUiAlertBridge, showSuccess } from "@/lib/ui/modals";
 
 function AuthInner() {
   const router = useRouter();
@@ -24,6 +25,9 @@ function AuthInner() {
   useEffect(() => {
     setOrigin(typeof window !== "undefined" ? window.location.origin : "");
     setMounted(true);
+    if (typeof window !== "undefined") {
+      enableAuthUiAlertBridge();
+    }
   }, []);
 
   useEffect(() => {
@@ -33,9 +37,21 @@ function AuthInner() {
     } = supabase.auth.onAuthStateChange((event, _session) => {
       if (event === "SIGNED_IN" && navigating === false) {
         setNavigating(true);
-        setTimeout(() => {
-          router.replace(redirectTo);
-        }, 100);
+        void showSuccess({
+          title: "¡Bienvenido!",
+          message:
+            event === "SIGNED_IN"
+              ? "Sesión iniciada correctamente. Redirigiendo…"
+              : "Registro completado. Redirigiendo…",
+          timer: 2200,
+          onClose: () => router.replace(redirectTo)
+        });
+      } else if (event === "USER_UPDATED" && navigating === false) {
+        void showSuccess({
+          title: "Actualizado",
+          message: "Tu contraseña se actualizó correctamente.",
+          timer: 2500
+        });
       }
     });
     return () => subscription.unsubscribe();
