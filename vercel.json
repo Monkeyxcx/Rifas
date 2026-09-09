@@ -48,7 +48,7 @@
   "crons": [
     {
       "path": "/api/cron/limpiar-reservas",
-      "schedule": "0 */6 * * *"
+      "schedule": "37 4 * * *"
     }
   ],
   "git": {
