@@ -20,6 +20,23 @@ interface Props {
 
 const POPUP_PARAMS =
   "popup,width=500,height=800,left=80,top=40,noopener,noreferrer";
+const POPUP_NAME = "rifasmpcheckout";
+const POPUP_ABOUT_BLANK_CHECK_MS = 600;
+
+function resolveEffectiveInitPoint(body: {
+  init_point?: string;
+  sandbox_init_point?: string;
+  testing?: boolean;
+}): string | null {
+  if (body.testing && body.sandbox_init_point && typeof body.sandbox_init_point === "string") {
+    return body.sandbox_init_point;
+  }
+  if (body.init_point && typeof body.init_point === "string") return body.init_point;
+  if (body.sandbox_init_point && typeof body.sandbox_init_point === "string") {
+    return body.sandbox_init_point;
+  }
+  return null;
+}
 
 export default function CheckoutPaymentButton({
   reservaId,
@@ -33,32 +50,33 @@ export default function CheckoutPaymentButton({
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [lastInitPoint, setLastInitPoint] = useState<string | null>(null);
-  const formRef = useRef<HTMLFormElement | null>(null);
   const lastInitPointRef = useRef<string | null>(null);
+  const openedWindowRef = useRef<Window | null>(null);
 
-  // sync ref + state (state para render ref para closures stales)
   const syncPoint = (p: string | null) => {
     setLastInitPoint(p);
     lastInitPointRef.current = p;
   };
 
-  const openViaSyncFormTargetBlank = (initPoint: string) => {
+  const openViaSyncAnchorClick = (initPoint: string): boolean => {
     try {
-      if (!formRef.current) {
-        const f = document.createElement("form");
-        f.method = "GET";
-        f.acceptCharset = "UTF-8";
-        f.rel = "noopener noreferrer";
-        document.body.appendChild(f);
-        formRef.current = f;
-      }
-      const form = formRef.current;
-      form.action = initPoint;
-      form.target = "_blank";
-      form.submit();
-      return true;
+      const a = document.createElement("a");
+      a.href = initPoint;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.style.display = "none";
+      document.body.appendChild(a);
+      const evt = new MouseEvent("click", {
+        view: window,
+        bubbles: true,
+        cancelable: true,
+        button: 0
+      });
+      const dispatched = a.dispatchEvent(evt);
+      document.body.removeChild(a);
+      return dispatched !== false;
     } catch (e) {
-      console.warn("[MP] form submit failed", e);
+      console.warn("[MP] anchor dispatch click fallback failed", e);
       return false;
     }
   };
@@ -67,6 +85,15 @@ export default function CheckoutPaymentButton({
     if (typeof window !== "undefined") {
       window.location.href = initPoint;
     }
+  };
+
+  const copyInitPointToClipboard = async (initPoint: string) => {
+    try {
+      await navigator.clipboard.writeText(initPoint);
+      return true;
+    } catch {
+        return false;
+      }
   };
 
   const pay = async () => {
@@ -92,11 +119,14 @@ export default function CheckoutPaymentButton({
       const body = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         init_point?: string;
+        sandbox_init_point?: string;
+        testing?: boolean;
         error?: string;
         message?: string;
         [k: string]: unknown;
       };
-      if (!res.ok || !body.init_point || typeof body.init_point !== "string") {
+      initPoint = resolveEffectiveInitPoint(body);
+      if (!res.ok || !initPoint) {
         console.error("create-preference failed", res.status, body);
         void showError({
           title: "No se pudo generar el link de pago",
@@ -108,7 +138,6 @@ export default function CheckoutPaymentButton({
         setLoading(false);
         return;
       }
-      initPoint = body.init_point;
       syncPoint(initPoint);
 
       try {
@@ -117,33 +146,44 @@ export default function CheckoutPaymentButton({
         /* ignore */
       }
 
-      // Estrategia 1: Ventana flotante popup (permite usuario volver y overlay vivo)
-      let opened: Window | null = null;
+      // Estrategia 1: window.open DIRECTAMENTE con la URL de MP (nunca about:blank primero)
       let openedOk = false;
       try {
-        opened = window.open("", "rifasmpcheckout", POPUP_PARAMS);
+        const opened = window.open(initPoint, POPUP_NAME, POPUP_PARAMS);
         if (opened && !opened.closed) {
-          opened.location.href = initPoint;
+          openedWindowRef.current = opened;
           openedOk = true;
+          window.setTimeout(() => {
+            try {
+              if (opened && !opened.closed) {
+                const href = String((opened as unknown as { location?: { href?: string } }).location?.href ?? "");
+                if (!href || href === "" || href === "about:blank") {
+                  console.warn("[MP] popup quedó about:blank, intentando anchor click fallback.");
+                  void openViaSyncAnchorClick(initPoint!);
+                }
+              }
+            } catch {
+              // cross-origin → significa que MP ya cargó (bien)
+            }
+          }, POPUP_ABOUT_BLANK_CHECK_MS);
         }
       } catch (e) {
         console.warn("[MP] window.open popup attempt failed", e);
       }
 
-      // Estrategia 2: _blank nueva pestaña + submit <form> SYNC (mejor popup-pass ratio)
+      // Estrategia 2: <a target=_blank> click programático (mejor bypass popup blockers)
       if (!openedOk) {
         try {
-          const viaForm = openViaSyncFormTargetBlank(initPoint);
-          if (viaForm) {
+          const viaAnchor = openViaSyncAnchorClick(initPoint);
+          if (viaAnchor) {
             openedOk = true;
           }
         } catch (e) {
-          console.warn("[MP] form-target-blank failed", e);
+          console.warn("[MP] anchor-click-target-blank failed", e);
         }
       }
 
       // Estrategia 3: redirect misma pestaña (popup blocker estricto)
-      // Preguntar primero al usuario para confirmar
       let selfRedirected = false;
       if (!openedOk) {
         const okGo = await showConfirm({
@@ -161,13 +201,20 @@ export default function CheckoutPaymentButton({
         }
       }
 
-      // Si no se abrió ni se redirigió → error genérico
+      // Estrategia 4 (último recurso): link manual + copiar al portapapeles
       if (!openedOk && !selfRedirected) {
-        syncPoint(null);
+        const copied = await copyInitPointToClipboard(initPoint);
+        const prefix = copied
+          ? "Se copió el link de pago al portapapeles.\n\n"
+          : "Copia el link de pago a mano:\n\n";
+        const suffix =
+          "\n\nAbre una pestaña nueva, pégalo y accede a Mercado Pago. Al terminar el pago regresarás aquí.";
         void showError({
-          title: "No se pudo abrir Mercado Pago",
-          message:
-            "Habilita ventanas emergentes para rifascenter.com o intenta en un navegador sin bloqueadores agresivos."
+          title: "Abre el link manualmente",
+          html:
+            (prefix + initPoint + suffix).replace(/[&<>]/g, (c) =>
+              c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"
+            ).replace(/\n/g, "<br/>")
         });
       }
     } catch (e) {
@@ -219,26 +266,36 @@ export default function CheckoutPaymentButton({
           </span>
         </div>
         {lastInitPoint && (
-          <button
-            type="button"
-            onClick={() => {
-              if (!lastInitPoint) return;
-              void showConfirm({
-                title: "Abrir en esta pestaña",
-                message:
-                  "¿Redirigirte a Mercado Pago en esta pestaña?\n(Volverás aquí después del pago).",
-                confirmText: "Abrir aquí",
-                dangerMode: false
-              }).then((ok) => {
-                if (ok && lastInitPointRef.current) {
-                  openRedirectCurrentTab(lastInitPointRef.current);
-                }
-              });
-            }}
-            className="underline underline-offset-2 decoration-dotted hover:text-brand-rose hover:decoration-brand-rose font-semibold"
-          >
-            Prefiero abrirlo en esta pestaña
-          </button>
+          <div className="flex items-center gap-3">
+            <a
+              href={lastInitPoint}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 decoration-dotted hover:text-brand-rose hover:decoration-brand-rose font-semibold"
+            >
+              Abrir link MP directamente
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                if (!lastInitPointRef.current) return;
+                void showConfirm({
+                  title: "Abrir en esta pestaña",
+                  message:
+                    "¿Redirigirte a Mercado Pago en esta pestaña?\n(Volverás aquí después del pago).",
+                  confirmText: "Abrir aquí",
+                  dangerMode: false
+                }).then((ok) => {
+                  if (ok && lastInitPointRef.current) {
+                    openRedirectCurrentTab(lastInitPointRef.current);
+                  }
+                });
+              }}
+              className="underline underline-offset-2 decoration-dotted hover:text-brand-rose hover:decoration-brand-rose font-semibold"
+            >
+              Prefiero abrirlo en esta pestaña
+            </button>
+          </div>
         )}
       </div>
     </div>

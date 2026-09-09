@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { createPreference as mpCreatePreference, isTesting } from "@/lib/mercadopago";
+import {
+  createPreference as mpCreatePreference,
+  isTesting,
+  resolvePublicSiteUrl,
+  emitLocalhostWarningIfNeeded
+} from "@/lib/mercadopago";
 import { createClient } from "@/lib/supabase/server";
 import { MOCK_RIFAS } from "@/components/rifas/MOCK_RIFAS";
 import type { MercadoPagoItem } from "@/lib/mercadopago";
@@ -171,11 +176,8 @@ export async function POST(req: Request) {
   // =====================================================================
   // FALLBACK MOCK: sin credenciales MP devolvemos preference demo.
   // =====================================================================
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.NODE_ENV === "development" && process.env.PORT
-      ? `http://localhost:${process.env.PORT}`
-      : "http://localhost:3000");
+  const baseUrl = resolvePublicSiteUrl();
+  emitLocalhostWarningIfNeeded(baseUrl);
   const numbersCsv = numbers.join(",");
   const backQs = new URLSearchParams({
     rifa_id: rifaId,

@@ -21,6 +21,65 @@ export const mpPayment = new Payment(mpConfig);
 // Helpers
 // =====================================================
 
+function isLocalhostLike(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const h = u.hostname.toLowerCase();
+    if (h === "localhost") return true;
+    if (h === "127.0.0.1") return true;
+    if (h === "[::1]") return true;
+    if (/\.localhost$/i.test(h)) return true;
+    return false;
+  } catch {
+    return /(^|\.)localhost(\/|:|$)/i.test(url) || /:\/\/127\.0\.0\.1(\/|:)/.test(url);
+  }
+}
+
+const PUBLIC_TUNNEL_ENV_KEYS = [
+  "MP_PUBLIC_TUNNEL_URL",
+  "NEXT_PUBLIC_MP_PUBLIC_TUNNEL_URL",
+  "VERCEL_URL",
+  "NEXT_PUBLIC_VERCEL_URL"
+];
+
+export function resolvePublicSiteUrl(): string {
+  for (const k of PUBLIC_TUNNEL_ENV_KEYS) {
+    const v = process.env[k];
+    if (v && typeof v === "string" && v.trim().length > 0) {
+      const trimmed = v.trim().replace(/\/+$/, "");
+      if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      return `https://${trimmed}`;
+    }
+  }
+  const env = process.env.NEXT_PUBLIC_SITE_URL;
+  if (env && env.trim().length > 0) {
+    const trimmed = env.trim().replace(/\/+$/, "");
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `http://${trimmed}`;
+  }
+  const port = process.env.PORT ?? "3000";
+  return `http://localhost:${port}`;
+}
+
+let localhostWarningEmitted = false;
+export function emitLocalhostWarningIfNeeded(url: string): void {
+  if (localhostWarningEmitted) return;
+  if (!isLocalhostLike(url)) return;
+  localhostWarningEmitted = true;
+  // eslint-disable-next-line no-console
+  console.warn(
+    "\n" +
+    "[mercadopago] ⚠️ ADVERTENCIA: usando `localhost` / `127.0.0.1` en `back_urls` / `notification_url`.\n" +
+    "[mercadopago] Mercado Pago DOCUMENTACION OFICIAL PROHIBE localhost en modo TEST/LIVE:\n" +
+    "[mercadopago]   → No aparecerá botón 'Volver al sitio' y puede fallar la redirección final con 'Algo ha salido mal'.\n" +
+    "[mercadopago] SOLUCIONES (elige 1):\n" +
+    "[mercadopago]  a) ngrok / cloudflared tunnel: setea MP_PUBLIC_TUNNEL_URL=https://abc123.ngrok-free.app en .env.local y reinicia next dev.\n" +
+    "[mercadopago]  b) Subir a preview (Vercel/Netlify) con NEXT_PUBLIC_SITE_URL=https://tu-preview.vercel.app.\n" +
+    "[mercadopago]  c) Para pruebas en local SIN retorno automático: aceptar que redirección final será rechazada y usar el watcher de pago / webhook vía túnel.\n" +
+    "[mercadopago] Link doc oficial: https://www.mercadopago.com.ar/developers/es/docs/checkout-pro/configure-back-urls\n"
+  );
+}
+
 export interface MercadoPagoItem {
   id: string;
   title: string;
@@ -53,9 +112,9 @@ export interface CreatePreferenceInput {
 }
 
 export async function createPreference(input: CreatePreferenceInput) {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  const isLocalhost =
-    /(^|\.)localhost$/i.test(baseUrl) || /:\/\/localhost(\/|:)/i.test(baseUrl);
+  const baseUrl = resolvePublicSiteUrl();
+  emitLocalhostWarningIfNeeded(baseUrl);
+  const isLocalhost = isLocalhostLike(baseUrl);
   const items = input.items.map((it) => ({
     id: it.id,
     title: it.title,
