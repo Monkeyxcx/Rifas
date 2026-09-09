@@ -1,5 +1,4 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "next build",
   "devCommand": "next dev --turbopack",
@@ -29,7 +28,7 @@
     }
   ],
   "images": {
-    "minimumCacheTTL": 31_536_000,
+    "minimumCacheTTL": 31536000,
     "formats": ["image/avif", "image/webp"],
     "remotePatterns": [
       { "protocol": "https", "hostname": "*.supabase.co" },
@@ -49,14 +48,6 @@
     {
       "path": "/api/cron/limpiar-reservas",
       "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/cerrar-rifas-vencidas",
-      "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/cron/revisar-pagos-pendientes",
-      "schedule": "0 * * * *"
     }
   ],
   "git": {
