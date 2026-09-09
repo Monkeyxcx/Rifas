@@ -31,9 +31,16 @@ export default function CountdownTimer({
   variant = "default"
 }: CountdownTimerProps) {
   const targetMs = useMemo(() => parseExpiry(expiresAt), [expiresAt]);
-  const [state, setState] = useState(() => calcRemaining(targetMs));
+  const [mounted, setMounted] = useState(false);
+  const [state, setState] = useState<ReturnType<typeof calcRemaining>>(() => ({
+    total: 0,
+    minutes: 0,
+    seconds: 0,
+    expired: false
+  }));
 
   useEffect(() => {
+    setMounted(true);
     setState(calcRemaining(targetMs));
     let called = false;
     const tick = () => setState((prev) => {
@@ -49,10 +56,12 @@ export default function CountdownTimer({
     return () => window.clearInterval(id);
   }, [targetMs, onExpire]);
 
-  const mm = String(state.minutes).padStart(2, "0");
-  const ss = String(state.seconds).padStart(2, "0");
+  const mm = mounted ? String(state.minutes).padStart(2, "0") : "--";
+  const ss = mounted ? String(state.seconds).padStart(2, "0") : "--";
 
-  const effectiveVariant: CountdownTimerProps["variant"] = state.expired
+  const effectiveVariant: CountdownTimerProps["variant"] = !mounted
+    ? variant
+    : state.expired
     ? "expired"
     : state.total < 3 * 60 * 1000
     ? "urgent"
@@ -68,7 +77,9 @@ export default function CountdownTimer({
   }[effectiveVariant];
 
   const Icon =
-    effectiveVariant === "expired"
+    !mounted
+      ? Clock3
+      : effectiveVariant === "expired"
       ? AlertTriangle
       : effectiveVariant === "urgent"
       ? AlertTriangle
@@ -76,7 +87,9 @@ export default function CountdownTimer({
       ? Clock3
       : CheckCircle2;
 
-  const label = state.expired
+  const label = !mounted
+    ? "Calculando tiempo restante…"
+    : state.expired
     ? "Tiempo agotado · tu reserva se liberó"
     : effectiveVariant === "urgent"
     ? "¡Date prisa! Tu reserva vence pronto"
