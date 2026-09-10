@@ -49,8 +49,6 @@ async function getRifaById(id: string): Promise<{
 
     if (rErr || !rifaRow) return null;
 
-    // Creator se carga en query separada: evita fallar si el nombre del FK
-    //   (rifas_creator_id_fkey) difiere en cloud o si el creator fue borrado.
     let creator: RifaLookupRow["creator"] = null;
     const rifaAny = rifaRow as Record<string, unknown>;
     if (rifaAny.creator_id && typeof rifaAny.creator_id === "string") {
@@ -142,106 +140,106 @@ export default async function RifaDetailPage({
   const raised = stats.sold_numbers * stats.number_price;
 
   return (
-    <div className="container max-w-content py-6 md:py-10">
-      <nav className="flex items-center gap-2 text-xs text-slate-500 mb-5">
-        <Link href="/rifas" className="hover:text-brand-rose transition">
+    <div className="container max-w-content px-2 sm:px-4 py-4 sm:py-6 md:py-10">
+      <nav className="flex items-center gap-2 text-xs text-slate-500 mb-3 sm:mb-5">
+        <Link href="/rifas" className="hover:text-brand-rose transition shrink-0">
           Rifas activas
         </Link>
-        <span className="text-slate-300">/</span>
-        <span className="text-slate-800 font-medium truncate max-w-[20rem]">
+        <span className="text-slate-300 shrink-0">/</span>
+        <span className="text-slate-800 font-medium truncate min-w-0">
           {rifa.title}
         </span>
       </nav>
 
-      <div className="grid gap-8 lg:grid-cols-5">
-        <div className="lg:col-span-3 space-y-6">
+      <div className="space-y-5 sm:space-y-6 max-w-5xl mx-auto">
+        <div>
           <div
             className={cn(
-              "relative aspect-[16/10] md:aspect-[16/9] rounded-2xl overflow-hidden shadow-[0_16px_50px_-18px_rgba(15,23,42,0.18)]",
+              "relative aspect-[4/3] md:aspect-[16/9] rounded-2xl overflow-hidden shadow-[0_16px_50px_-18px_rgba(15,23,42,0.18)]",
               rifa.is_solidarity
                 ? "bg-gradient-to-br from-brand-cyan via-cyan-500 to-brand-rose"
                 : "bg-gradient-to-br from-brand-rose via-pink-500 to-brand-violet"
             )}
           >
             <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] [background-size:18px_18px]" />
-            <div className="absolute top-4 left-4 flex items-center gap-2">
+            <div className="absolute top-3 left-3 sm:top-4 sm:left-4 flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <Badge
                 variant={rifa.is_solidarity ? "solidarity" : "prize"}
-                className="shadow-[0_8px_24px_-8px_rgba(0,0,0,0.2)]"
+                className="shadow-[0_8px_24px_-8px_rgba(0,0,0,0.2)] !text-[10px] sm:!text-xs"
               >
                 {rifa.is_solidarity ? (
                   <>
-                    <Heart className="h-3 w-3 mr-1" /> Solidaria
+                    <Heart className="h-2.5 w-2.5 mr-1" /> Solidaria
                   </>
                 ) : (
                   <>
-                    <Gift className="h-3 w-3 mr-1" /> Premio
+                    <Gift className="h-2.5 w-2.5 mr-1" /> Premio
                   </>
                 )}
               </Badge>
               {stats.sold_percentage >= 80 && (
-                <Badge variant="destructive" className="!bg-rose-500 shadow-[0_8px_24px_-8px_rgba(255,27,81,0.45)]">
+                <Badge variant="destructive" className="!bg-rose-500 shadow-[0_8px_24px_-8px_rgba(255,27,81,0.45)] !text-[10px] sm:!text-xs">
                   ¡Se agota!
                 </Badge>
               )}
               {soldOut && (
-                <Badge variant="closed">
-                  <Award className="h-3 w-3 mr-1" /> Agotada
+                <Badge variant="closed" className="!text-[10px] sm:!text-xs">
+                  <Award className="h-2.5 w-2.5 mr-1" /> Agotada
                 </Badge>
               )}
             </div>
-            <div className="absolute top-4 right-4 flex items-center gap-2">
+            <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-1.5 sm:gap-2">
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="!bg-white/15 !border-white/30 !text-white hover:!bg-white/25 backdrop-blur h-8 rounded-full"
+                className="!bg-white/15 !border-white/30 !text-white hover:!bg-white/25 backdrop-blur h-7 sm:h-8 rounded-full !text-[11px] sm:!text-xs px-2 sm:px-3"
               >
-                <Share2 className="h-3.5 w-3.5 mr-1" /> Compartir
+                <Share2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" /> Compartir
               </Button>
               {currentUserId && (
-                <Badge variant="outline" className="!bg-white/20 !text-white !border-white/30 backdrop-blur">
-                  {mineNumbers.size > 0 ? `🎟 ${mineNumbers.size} tuyos` : "Sesión iniciada"}
+                <Badge variant="outline" className="!bg-white/20 !text-white !border-white/30 backdrop-blur !text-[10px] sm:!text-xs py-0">
+                  {mineNumbers.size > 0 ? `🎟 ${mineNumbers.size}` : "Sesión ok"}
                 </Badge>
               )}
             </div>
 
             <div className="absolute inset-0 grid place-items-center">
-              <div className="h-32 w-32 md:h-40 md:w-40 rounded-[2rem] bg-white/20 backdrop-blur grid place-items-center text-6xl md:text-7xl shadow-2xl">
+              <div className="h-24 w-24 sm:h-32 sm:w-32 md:h-40 md:w-40 rounded-[1.5rem] sm:rounded-[2rem] bg-white/20 backdrop-blur grid place-items-center text-5xl sm:text-6xl md:text-7xl shadow-2xl">
                 {rifa.is_solidarity ? "💝" : "🏆"}
               </div>
             </div>
 
-            <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between gap-3">
+            <div className="absolute bottom-3 left-3 right-3 sm:bottom-5 sm:left-5 sm:right-5 flex items-end justify-between gap-3">
               <div className="text-white drop-shadow-sm">
-                <div className="text-[11px] uppercase tracking-[0.2em] font-bold opacity-80">
-                  Premio a sortear
+                <div className="text-[10px] sm:text-[11px] uppercase tracking-[0.16em] font-bold opacity-80">
+                  Premio
                 </div>
-                <div className="mt-1 font-display font-black text-2xl md:text-4xl leading-tight tabular-nums">
+                <div className="mt-0.5 sm:mt-1 font-display font-black text-xl sm:text-2xl md:text-4xl leading-tight tabular-nums">
                   {formatCurrency(rifa.prize_value)}
                 </div>
               </div>
               {rifa.creator?.country && (
                 <Badge
                   variant="outline"
-                  className="!bg-white/15 !border-white/30 !text-white backdrop-blur"
+                  className="!bg-white/15 !border-white/30 !text-white backdrop-blur !text-[10px] sm:!text-xs py-0 shrink-0"
                 >
-                  <MapPin className="h-3 w-3 mr-1" /> {rifa.creator.country}
+                  <MapPin className="h-2.5 w-2.5 mr-1" /> {rifa.creator.country}
                 </Badge>
               )}
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-3">
               <div className="min-w-0 flex-1">
-                <h1 className="font-display font-black text-2xl md:text-3xl leading-[1.08] text-slate-900">
+                <h1 className="font-display font-black text-xl sm:text-2xl md:text-3xl leading-[1.08] text-slate-900">
                   {rifa.title}
                 </h1>
                 {rifa.is_solidarity && rifa.cause_name && (
-                  <div className="mt-2 inline-flex items-center gap-2 text-sm text-brand-cyan-800 bg-brand-cyan/10 border border-brand-cyan/20 px-3 py-1.5 rounded-xl">
-                    <Heart className="h-4 w-4" />
-                    <span className="font-bold">{rifa.cause_name}</span>
+                  <div className="mt-2 inline-flex items-center gap-2 text-xs sm:text-sm text-brand-cyan-800 bg-brand-cyan/10 border border-brand-cyan/20 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl">
+                    <Heart className="h-3.5 sm:h-4 w-3.5 sm:w-4 shrink-0" />
+                    <span className="font-bold truncate">{rifa.cause_name}</span>
                   </div>
                 )}
               </div>
@@ -249,60 +247,60 @@ export default async function RifaDetailPage({
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
               <Card className="border-slate-200 bg-white/60">
-                <CardContent className="p-3 md:p-4 flex items-center gap-2.5">
-                  <div className="h-9 w-9 shrink-0 rounded-xl bg-brand-rose/10 grid place-items-center text-brand-rose">
-                    <Award className="h-4 w-4" />
+                <CardContent className="p-2.5 sm:p-3 md:p-4 flex items-center gap-2 sm:gap-2.5">
+                  <div className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-lg sm:rounded-xl bg-brand-rose/10 grid place-items-center text-brand-rose">
+                    <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[10px] md:text-[11px] uppercase tracking-wider text-slate-400 font-bold">
+                    <div className="text-[9px] sm:text-[10px] md:text-[11px] uppercase tracking-wider text-slate-400 font-bold">
                       Vendidos
                     </div>
-                    <div className="font-display font-black text-lg text-slate-900 tabular-nums">
+                    <div className="font-display font-black text-base sm:text-lg text-slate-900 tabular-nums">
                       {stats.sold_numbers}/{stats.total_numbers}
                     </div>
                   </div>
                 </CardContent>
               </Card>
               <Card className="border-slate-200 bg-white/60">
-                <CardContent className="p-3 md:p-4 flex items-center gap-2.5">
-                  <div className="h-9 w-9 shrink-0 rounded-xl bg-brand-violet/10 grid place-items-center text-brand-violet">
-                    <Users className="h-4 w-4" />
+                <CardContent className="p-2.5 sm:p-3 md:p-4 flex items-center gap-2 sm:gap-2.5">
+                  <div className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-lg sm:rounded-xl bg-brand-violet/10 grid place-items-center text-brand-violet">
+                    <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[10px] md:text-[11px] uppercase tracking-wider text-slate-400 font-bold">
+                    <div className="text-[9px] sm:text-[10px] md:text-[11px] uppercase tracking-wider text-slate-400 font-bold">
                       Recaudado
                     </div>
-                    <div className="font-display font-black text-lg text-slate-900 tabular-nums">
+                    <div className="font-display font-black text-base sm:text-lg text-slate-900 tabular-nums">
                       {formatCurrency(raised)}
                     </div>
                   </div>
                 </CardContent>
               </Card>
               <Card className="border-slate-200 bg-white/60">
-                <CardContent className="p-3 md:p-4 flex items-center gap-2.5">
-                  <div className="h-9 w-9 shrink-0 rounded-xl bg-brand-rose/10 grid place-items-center text-brand-rose">
-                    <Calendar className="h-4 w-4" />
+                <CardContent className="p-2.5 sm:p-3 md:p-4 flex items-center gap-2 sm:gap-2.5">
+                  <div className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-lg sm:rounded-xl bg-brand-rose/10 grid place-items-center text-brand-rose">
+                    <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[10px] md:text-[11px] uppercase tracking-wider text-slate-400 font-bold">
+                    <div className="text-[9px] sm:text-[10px] md:text-[11px] uppercase tracking-wider text-slate-400 font-bold">
                       Cierra
                     </div>
-                    <div className="font-display font-black text-lg text-slate-900 tabular-nums">
+                    <div className="font-display font-black text-base sm:text-lg text-slate-900 tabular-nums truncate">
                       {rifa.ends_at ? formatRelativeTime(rifa.ends_at) : "—"}
                     </div>
                   </div>
                 </CardContent>
               </Card>
               <Card className="border-slate-200 bg-white/60">
-                <CardContent className="p-3 md:p-4 flex items-center gap-2.5">
-                  <div className="h-9 w-9 shrink-0 rounded-xl bg-brand-gold/10 grid place-items-center text-brand-gold">
-                    <ShieldCheck className="h-4 w-4" />
+                <CardContent className="p-2.5 sm:p-3 md:p-4 flex items-center gap-2 sm:gap-2.5">
+                  <div className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-lg sm:rounded-xl bg-brand-gold/10 grid place-items-center text-brand-gold">
+                    <ShieldCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[10px] md:text-[11px] uppercase tracking-wider text-slate-400 font-bold">
-                      Crea ·
+                    <div className="text-[9px] sm:text-[10px] md:text-[11px] uppercase tracking-wider text-slate-400 font-bold">
+                      Creador
                     </div>
-                    <div className="font-bold text-sm text-slate-900 truncate">
+                    <div className="font-bold text-xs sm:text-sm text-slate-900 truncate">
                       {rifa.creator?.full_name ?? "—"}
                     </div>
                   </div>
@@ -314,40 +312,44 @@ export default async function RifaDetailPage({
           <Separator />
 
           <Tabs defaultValue="numeros" className="w-full">
-            <TabsList className="!bg-slate-100/70 !h-11 rounded-full p-1 grid grid-cols-4">
+            <TabsList
+              className="!bg-slate-100/70 !h-auto sm:!h-11 rounded-2xl sm:rounded-full p-1 flex overflow-x-auto gap-1 sm:gap-0 sm:grid sm:grid-cols-4 hide-scroll"
+              style={{ scrollbarWidth: "none" }}
+            >
+              <style>{`.hide-scroll::-webkit-scrollbar{display:none}`}</style>
               <TabsTrigger
                 value="descripcion"
-                className="rounded-full data-[state=active]:!bg-white data-[state=active]:!text-slate-900 data-[state=active]:shadow-sm"
+                className="shrink-0 rounded-full data-[state=active]:!bg-white data-[state=active]:!text-slate-900 data-[state=active]:shadow-sm text-xs sm:text-sm"
               >
                 Descripción
               </TabsTrigger>
               <TabsTrigger
                 value="numeros"
-                className="rounded-full data-[state=active]:!bg-gradient-to-r data-[state=active]:from-brand-rose data-[state=active]:to-brand-violet data-[state=active]:!text-white data-[state=active]:shadow-cta"
+                className="shrink-0 rounded-full data-[state=active]:!bg-gradient-to-r data-[state=active]:from-brand-rose data-[state=active]:to-brand-violet data-[state=active]:!text-white data-[state=active]:shadow-cta text-xs sm:text-sm"
               >
                 Números
               </TabsTrigger>
               <TabsTrigger
                 value="sorteo"
-                className="rounded-full data-[state=active]:!bg-white data-[state=active]:!text-slate-900 data-[state=active]:shadow-sm"
+                className="shrink-0 rounded-full data-[state=active]:!bg-white data-[state=active]:!text-slate-900 data-[state=active]:shadow-sm text-xs sm:text-sm"
               >
                 Sorteo
               </TabsTrigger>
               <TabsTrigger
                 value="creador"
-                className="rounded-full data-[state=active]:!bg-white data-[state=active]:!text-slate-900 data-[state=active]:shadow-sm"
+                className="shrink-0 rounded-full data-[state=active]:!bg-white data-[state=active]:!text-slate-900 data-[state=active]:shadow-sm text-xs sm:text-sm"
               >
                 Creador
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="descripcion" className="mt-5 space-y-5 focus-visible:outline-none focus-visible:ring-0">
+            <TabsContent value="descripcion" className="mt-3 sm:mt-5 space-y-4 sm:space-y-5 focus-visible:outline-none focus-visible:ring-0">
               <Card className="border-slate-200 bg-white/70">
-                <CardContent className="p-5 space-y-3">
-                  <h3 className="font-display font-bold text-lg text-slate-900">
-                    Descripción del premio
+                <CardContent className="p-4 sm:p-5 space-y-2 sm:space-y-3">
+                  <h3 className="font-display font-bold text-base sm:text-lg text-slate-900">
+                    Descripción
                   </h3>
-                  <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
                     {rifa.description ?? rifa.prize_name}
                   </p>
                 </CardContent>
@@ -355,26 +357,26 @@ export default async function RifaDetailPage({
 
               {rifa.is_solidarity && (rifa.cause_description || rifa.cause_target > 0) && (
                 <Card className="border-brand-cyan/20 bg-gradient-to-br from-brand-cyan/5 via-white to-brand-rose/5">
-                  <CardContent className="p-5 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="solidarity">
-                        <Heart className="h-3 w-3 mr-1" /> Causa solidaria
+                  <CardContent className="p-4 sm:p-5 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="solidarity" className="!text-[10px] sm:!text-xs">
+                        <Heart className="h-2.5 w-2.5 mr-1" /> Causa
                       </Badge>
                       {rifa.cause_target > 0 && (
-                        <Badge variant="outline" className="!border-cyan-200 !text-brand-cyan-700 !bg-cyan-50">
-                          Meta: {formatCurrency(rifa.cause_target)}
+                        <Badge variant="outline" className="!border-cyan-200 !text-brand-cyan-700 !bg-cyan-50 !text-[10px] sm:!text-xs py-0">
+                          Meta {formatCurrency(rifa.cause_target)}
                         </Badge>
                       )}
                     </div>
                     {rifa.cause_description && (
-                      <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
                         {rifa.cause_description}
                       </p>
                     )}
                     {rifa.cause_target > 0 && (
-                      <div className="space-y-1.5 pt-2">
-                        <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                          <span>Progreso de la causa</span>
+                      <div className="space-y-1.5 pt-1 sm:pt-2">
+                        <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 font-medium">
+                          <span>Progreso causa</span>
                           <span className="font-numbers tabular-nums font-bold text-brand-cyan-700">
                             {rifa.cause_target > 0
                               ? Math.min(100, Math.round((raised / rifa.cause_target) * 100))
@@ -387,11 +389,10 @@ export default async function RifaDetailPage({
                               ? Math.min(100, (raised / rifa.cause_target) * 100)
                               : 0
                           }
-                          className="h-2.5 [&>div]:bg-gradient-to-r [&>div]:from-brand-cyan [&>div]:to-brand-rose [&>div]:rounded-full"
+                          className="h-2 sm:h-2.5 [&>div]:bg-gradient-to-r [&>div]:from-brand-cyan [&>div]:to-brand-rose [&>div]:rounded-full"
                         />
-                        <div className="text-[11px] text-slate-400">
-                          {formatCurrency(raised)} recaudados de{" "}
-                          {formatCurrency(rifa.cause_target || 0)}
+                        <div className="text-[10px] sm:text-[11px] text-slate-400">
+                          {formatCurrency(raised)} de {formatCurrency(rifa.cause_target || 0)}
                         </div>
                       </div>
                     )}
@@ -400,7 +401,7 @@ export default async function RifaDetailPage({
               )}
             </TabsContent>
 
-            <TabsContent value="numeros" className="mt-5 focus-visible:outline-none focus-visible:ring-0">
+            <TabsContent value="numeros" className="mt-3 sm:mt-5 focus-visible:outline-none focus-visible:ring-0">
               <RifaDetailActions
                 rifaId={rifa.id}
                 isSolidarity={rifa.is_solidarity}
@@ -415,14 +416,14 @@ export default async function RifaDetailPage({
               />
             </TabsContent>
 
-            <TabsContent value="sorteo" className="mt-5 focus-visible:outline-none focus-visible:ring-0 space-y-4">
+            <TabsContent value="sorteo" className="mt-3 sm:mt-5 focus-visible:outline-none focus-visible:ring-0 space-y-3 sm:space-y-4">
               <Card className="border-slate-200 bg-white/70">
-                <CardContent className="p-5 grid md:grid-cols-2 gap-4">
-                  <div className="rounded-xl bg-gradient-to-br from-brand-gold/10 via-white to-brand-rose/5 border border-brand-gold/20 p-4 space-y-2">
-                    <div className="text-[11px] uppercase tracking-wider text-brand-gold-700 font-bold">
-                      Fecha del sorteo
+                <CardContent className="p-4 sm:p-5 grid md:grid-cols-2 gap-3 sm:gap-4">
+                  <div className="rounded-xl bg-gradient-to-br from-brand-gold/10 via-white to-brand-rose/5 border border-brand-gold/20 p-3 sm:p-4 space-y-1.5 sm:space-y-2">
+                    <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-brand-gold-700 font-bold">
+                      Fecha sorteo
                     </div>
-                    <div className="font-display font-black text-2xl text-slate-900">
+                    <div className="font-display font-black text-lg sm:text-2xl text-slate-900">
                       {rifa.draw_date
                         ? new Date(rifa.draw_date).toLocaleDateString("es-ES", {
                             weekday: "long",
@@ -432,20 +433,20 @@ export default async function RifaDetailPage({
                           })
                         : "—"}
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-[11px] sm:text-xs text-slate-500">
                       {rifa.draw_date
-                        ? `Hora: ${new Date(rifa.draw_date).toLocaleTimeString("es-ES", {
+                        ? `Hora ${new Date(rifa.draw_date).toLocaleTimeString("es-ES", {
                             hour: "2-digit",
                             minute: "2-digit"
-                          })} (tu zona horaria)`
+                          })}`
                         : ""}
                     </div>
                   </div>
-                  <div className="rounded-xl bg-gradient-to-br from-brand-rose/5 via-white to-brand-violet/5 border border-slate-200 p-4 space-y-2">
-                    <div className="text-[11px] uppercase tracking-wider text-brand-violet font-bold">
-                      Cierre de ventas
+                  <div className="rounded-xl bg-gradient-to-br from-brand-rose/5 via-white to-brand-violet/5 border border-slate-200 p-3 sm:p-4 space-y-1.5 sm:space-y-2">
+                    <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-brand-violet font-bold">
+                      Cierre ventas
                     </div>
-                    <div className="font-display font-black text-2xl text-slate-900">
+                    <div className="font-display font-black text-lg sm:text-2xl text-slate-900">
                       {rifa.ends_at
                         ? new Date(rifa.ends_at).toLocaleDateString("es-ES", {
                             weekday: "long",
@@ -455,49 +456,19 @@ export default async function RifaDetailPage({
                           })
                         : "—"}
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-[11px] sm:text-xs text-slate-500">
                       {rifa.ends_at ? `Faltan ${formatRelativeTime(rifa.ends_at)}` : ""}
                     </div>
                   </div>
                 </CardContent>
               </Card>
-
-              <Card className="border-slate-200 bg-white/70">
-                <CardContent className="p-5 space-y-3">
-                  <h3 className="font-display font-bold text-lg text-slate-900">
-                    Cómo se realizará el sorteo
-                  </h3>
-                  <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
-                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                    {(rifa as any).draw_instructions ??
-                      "Sorteo público y transparente."}
-                  </p>
-                  <div className="grid grid-cols-3 gap-2 pt-2">
-                    {[
-                      { t: "Transmisión en vivo", icon: "📡" },
-                      { t: "Testigos públicos", icon: "👥" },
-                      { t: "Hash verificable", icon: "🔐" }
-                    ].map((f) => (
-                      <div
-                        key={f.t}
-                        className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-center"
-                      >
-                        <div className="text-2xl">{f.icon}</div>
-                        <div className="mt-1 text-[11px] text-slate-600 font-semibold">
-                          {f.t}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
             </TabsContent>
 
-            <TabsContent value="creador" className="mt-5 focus-visible:outline-none focus-visible:ring-0">
+            <TabsContent value="creador" className="mt-3 sm:mt-5 focus-visible:outline-none focus-visible:ring-0">
               <Card className="border-slate-200 bg-white/70">
-                <CardContent className="p-5 space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="h-16 w-16 shrink-0 rounded-2xl bg-gradient-to-br from-brand-rose via-pink-500 to-brand-violet grid place-items-center text-white font-display font-black text-2xl shadow-[0_10px_30px_-12px_rgba(255,27,81,0.35)]">
+                <CardContent className="p-4 sm:p-5 space-y-3 sm:space-y-4">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="h-12 w-12 sm:h-16 sm:w-16 shrink-0 rounded-xl sm:rounded-2xl bg-gradient-to-br from-brand-rose via-pink-500 to-brand-violet grid place-items-center text-white font-display font-black text-xl sm:text-2xl shadow-[0_10px_30px_-12px_rgba(255,27,81,0.35)]">
                       {(rifa.creator?.full_name ?? "??")
                         .split(" ")
                         .slice(0, 2)
@@ -505,33 +476,18 @@ export default async function RifaDetailPage({
                         .join("")}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-display font-black text-xl text-slate-900 truncate">
+                      <div className="font-display font-black text-lg sm:text-xl text-slate-900 truncate">
                         {rifa.creator?.full_name ?? "Creador"}
                       </div>
                       {rifa.creator?.country && (
-                        <div className="mt-0.5 text-sm text-slate-500 flex items-center gap-1.5">
-                          <MapPin className="h-3.5 w-3.5" /> {rifa.creator.country}
+                        <div className="mt-0.5 text-xs sm:text-sm text-slate-500 flex items-center gap-1.5">
+                          <MapPin className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> {rifa.creator.country}
                         </div>
                       )}
                     </div>
-                    <Button type="button" variant="outline" size="sm" className="h-9">
-                      Ver perfil
+                    <Button type="button" variant="outline" size="sm" className="h-8 sm:h-9 !text-[11px] sm:!text-xs px-2 sm:px-3">
+                      Perfil
                     </Button>
-                  </div>
-                  <Separator />
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    {[
-                      { k: "Rifas creadas", v: "12", c: "text-brand-rose" },
-                      { k: "% Entregados", v: "100%", c: "text-brand-cyan" },
-                      { k: "Valoración", v: "4.9 ★", c: "text-brand-gold" }
-                    ].map((s) => (
-                      <div key={s.k} className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-                        <div className={cn("font-display font-black text-xl tabular-nums", s.c)}>
-                          {s.v}
-                        </div>
-                        <div className="mt-0.5 text-[11px] text-slate-500">{s.k}</div>
-                      </div>
-                    ))}
                   </div>
                 </CardContent>
               </Card>
