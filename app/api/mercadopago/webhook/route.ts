@@ -346,15 +346,46 @@ export async function POST(req: NextRequest) {
       if (!rifaIdRaw) {
         rifaCancelledNoId = true;
         console.warn("[mercadopago/webhook] sin rifa_id resoluble — side-effects cancelados.");
+      } else if (!user_id) {
+        // FIX B#06: user_id no resuelto después de todos los fallbacks (metadata,
+        // reserva_id lookup, rifa+numbers reserved). FK pagos.user_id NOT NULL
+        // → INSERT fallaría 23502. Retornamos 500 TRANSIENTE para que MP REINTENTE
+        // (la ventana de gracia de reserva aún puede estar abierta / nuevo lookup
+        //  podría encontrar user_id si se completó race condition).
+        sideEffectsOk = false;
+        sideEffectsErrMsg = `user_id irresoluble pago=${payment.id} rifa=${rifaIdRaw} numbers=${numbers.join(",")}`;
+        httpStatusOverride = 500;
+        console.error(
+          `[mercadopago/webhook] B#06 user_id SIN RESOLVER pago=${payment.id}. HTTP 500 MP RETRY. numbers=${numbers.join(",")}`
+        );
       } else {
         try {
+          // FIX B#31: Si reservaIdRaw no resolvió (sintético no match), pero sí
+          // tenemos user_id + rifa + numbers, buscamos el id de reserva REAL
+          // para insertarlo en pagos.reserva_id (ahora FK dropeada en 0005, pero
+          // ayuda a polling y al JOIN del Bug#08 rollback histórico).
+          let reservaIdRealParaPagos: string | null = reservaIdRaw;
+          if ((!reservaIdRealParaPagos || !/^[0-9a-fA-F-]{36}$/.test(reservaIdRealParaPagos)) && numbers.length) {
+            const row = (await q<ReservaLookupRow[]>(
+              sb
+                .from("reservas")
+                .select("id")
+                .eq("rifa_id", rifaIdRaw)
+                .eq("user_id", user_id as string)
+                .in("number", numbers)
+                .eq("status", "reserved")
+                .limit(1)
+            )) as ReservaLookupRow[] | null;
+            if (row && row[0]?.id) reservaIdRealParaPagos = row[0].id as string;
+          }
+
           // 4c. Insert Pago
           const pagoId = generateUUID();
           const pagoRow = {
             id: pagoId,
             rifa_id: rifaIdRaw,
             user_id,
-            reserva_id: reservaIdRaw,
+            reserva_id: reservaIdRealParaPagos,
             mercado_pago_payment_id: String(payment.id ?? ""),
             mercado_pago_preference_id: null,
             external_reference: externalReference || null,
@@ -376,12 +407,17 @@ export async function POST(req: NextRequest) {
             const newStatusPaid: ReservaStatus = "paid";
             const nowIso = new Date().toISOString();
             if (rifaIdRaw && numbers.length) {
+              // FIX B#03: filtros user_id + status=reserved para NO actualizar
+              // reservas expiradas/canceladas de OTROS usuarios que recompraron
+              // los mismos números. Integridad de datos.
               await q(
                 sb
                   .from("reservas")
                   .update({ status: newStatusPaid, updated_at: nowIso })
                   .eq("rifa_id", rifaIdRaw)
                   .in("number", numbers)
+                  .eq("user_id", user_id as string)
+                  .eq("status", "reserved")
               );
             }
 
