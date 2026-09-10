@@ -125,7 +125,6 @@ export default function RifaDetailActions(props: Props) {
       numberPrice={numberPrice}
       soldNumbers={soldNumbers}
       mineNumbers={mineNumbers}
-      soldPercentage={soldPercentage}
       maxSelections={20}
       onChange={(sel) => setSelected(sel)}
     />

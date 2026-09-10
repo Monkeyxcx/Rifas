@@ -19,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import RifaDetailActions from "@/components/rifas/RifaDetailActions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { Rifa, RifaStats } from "@/lib/types";
 import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 
@@ -94,7 +94,8 @@ async function getRifaById(id: string): Promise<{
     const soldSet = new Set<string>();
     const mineSet = new Set<string>();
     try {
-      const { data: rows } = await supabase
+      const adminSb = createServiceClient();
+      const { data: rows } = await adminSb
         .from("reservas")
         .select("number,status,user_id")
         .eq("rifa_id", rifa.id)

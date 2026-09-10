@@ -13,24 +13,8 @@ interface NumberGridProps {
   numberPrice: number;
   soldNumbers?: Set<string>;
   mineNumbers?: Set<string>;
-  soldPercentage?: number;
   onChange?: (selected: string[]) => void;
   maxSelections?: number;
-}
-
-function makeSoldSet(total: number, percentage: number): Set<string> {
-  const count = Math.max(0, Math.min(total, Math.round((total * percentage) / 100)));
-  const s = new Set<string>();
-  let seed = 42;
-  function rand() {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    return seed / 0xffffffff;
-  }
-  while (s.size < count) {
-    const n = Math.floor(rand() * total);
-    s.add(padRaffleNumber(n));
-  }
-  return s;
 }
 
 export default function NumberGrid({
@@ -38,14 +22,13 @@ export default function NumberGrid({
   numberPrice,
   soldNumbers,
   mineNumbers,
-  soldPercentage = 0,
   onChange,
   maxSelections = 20
 }: NumberGridProps) {
   const allNumbers = useMemo(() => generateRaffleNumbers(totalNumbers), [totalNumbers]);
   const computedSold = useMemo(
-    () => soldNumbers ?? makeSoldSet(totalNumbers, soldPercentage),
-    [soldNumbers, totalNumbers, soldPercentage]
+    () => soldNumbers ?? new Set<string>(),
+    [soldNumbers]
   );
   const mine = mineNumbers ?? new Set<string>();
 
