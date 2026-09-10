@@ -39,12 +39,27 @@ export async function updateSession(request: NextRequest) {
     data: { user }
   } = await supabase.auth.getUser();
 
-  const isPrivateRoute = request.nextUrl.pathname.startsWith("/(app)") ||
-    (!request.nextUrl.pathname.startsWith("/_next") &&
-      !request.nextUrl.pathname.startsWith("/api") &&
-      ["/rifas/crear", "/mis-rifas", "/perfil", "/checkout"].some((p) =>
-        request.nextUrl.pathname.startsWith(p)
-      ));
+  // FIX B#04: Next.js ELIMINA los paréntesis de route groups del pathname.
+  // "/(app)/mis-rifas/creadas" pathname real = "/mis-rifas/creadas". Condición
+  // startsWith("/(app)") NUNCA coincidía. Listado exhaustivo de paths privados
+  // usando prefijos de carpetas. Si se agrega nueva ruta en route group (app),
+  // agregar el prefijo aquí.
+  const privatePrefixes = [
+    "/rifas/crear",
+    "/rifas/editar",
+    "/mis-rifas",
+    "/mis-numeros",
+    "/perfil",
+    "/checkout",
+    "/panel",
+    "/admin",
+    "/dashboard",
+    "/api/admin"
+  ];
+  const isPrivateRoute =
+    !request.nextUrl.pathname.startsWith("/_next") &&
+    !request.nextUrl.pathname.startsWith("/api/") && // los /api/auth/* se protegen solos
+    privatePrefixes.some((p) => request.nextUrl.pathname.startsWith(p));
 
   if (!user && isPrivateRoute) {
     const url = request.nextUrl.clone();
