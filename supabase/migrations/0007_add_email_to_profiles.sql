@@ -1,10 +1,15 @@
 -- =================================================================
--- 0007_ADD_EMAIL_TO_PROFILES.SQL · RifasCenter
+-- 0007_ADD_EMAIL_TO_PROFILES.SQL · RifasCenter (FIXED)
 -- Fix B#05: /api/auth/exists ILIKE email sobre profiles requiere
 -- que la tabla profiles tenga columna email. El trigger signup
 -- handle_new_user NO insertaba email. Se backfillea desde auth.users
 -- para usuarios ya existentes.
+-- FIX POST-VALIDATION: habilitar pg_trgm extension ANTES de usar
+-- gin_trgm_ops (por defecto no habilitada en algunos proyectos).
 -- =================================================================
+
+-- 0) Habilitar pg_trgm si no está (gin_trgm_ops viene de acá)
+CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public;
 
 -- 1) Agregar columna email a profiles (nullable primero, luego unique)
 ALTER TABLE IF EXISTS public.profiles
@@ -47,6 +52,6 @@ CREATE TRIGGER on_auth_user_created
 
 -- 4) Índice para búsquedas ILIKE rápidas en signup exists pre-check
 CREATE INDEX IF NOT EXISTS idx_profiles_email_trgm
-    ON public.profiles USING GIN (email gin_trgm_ops);
+    ON public.profiles USING GIN (email public.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_profiles_email_lower
     ON public.profiles (LOWER(email));

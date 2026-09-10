@@ -1,15 +1,34 @@
 -- =================================================================
--- 0008_ROLLBACK_B08_CORRUPTED_RESERVAS_PAID_VIA_RIFA_USER.SQL
+-- 0008_ROLLBACK_B08_CORRUPTED_RESERVAS_PAID_VIA_RIFA_USER.SQL  (FIXED)
 -- Fix B#08: 0006 usó JOIN p.reserva_id = r.id pero como Bug#01 insertaba
 -- reserva_id SINTÉTICO en pagos.reserva_id (no match reservas.id REAL),
 -- 0 rows fueron actualizadas. Las rows de B#21 siguen status='expired'
 -- aunque pagos.status='approved'.
 --
--- REPARACIÓN: Match por (rifa_id + user_id + timing + numbers overlap).
--- No se puede JOIN directo por numbers CSV porque reservas es 1 row por
--- número (1NF). Usamos EXISTS con subquery overlaps de numbers de pago
--- metadata o rango temporal de compra user/rifa.
+-- FIX POST-VALIDATION: Columna `metadata` NO EXISTÍA en tabla public.pagos
+-- en Supabase Cloud (solo `mercado_pago_raw JSONB`). La migración añade
+-- ADD COLUMN IF NOT EXISTS metadata JSONB y popula desde
+-- mercado_pago_raw->'metadata' antes de ejecutar el repair UPDATE.
 -- =================================================================
+
+-- 0) Añadir columna metadata a pagos (la usa MP SDK preference metadata
+--    y /api/mercadopago/webhook la necesita para reparar B#08). Además
+--    almacenará rifa_id / reserva_id / numbers persistente en PG sin
+--    parsear JSON MP cada vez.
+ALTER TABLE IF EXISTS public.pagos
+    ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::JSONB;
+
+-- 0b) Popular metadata para pagos ya existentes desde mercado_pago_raw.
+--     mercado_pago_raw.metadata (preference metadata) usualmente tiene
+--     rifa_id, reserva_id, numbers.
+UPDATE public.pagos
+   SET metadata = COALESCE(
+       (mercado_pago_raw->'metadata')::JSONB,
+       '{}'::JSONB
+   )
+ WHERE (metadata IS NULL OR metadata::TEXT = '{}'::TEXT)
+   AND mercado_pago_raw IS NOT NULL
+   AND jsonb_typeof(mercado_pago_raw) = 'object';
 
 -- 1) FUNCIÓN HELPER: extrae numbers[] de pagos.metadata->>'numbers' (CSV "07,13,42")
 CREATE OR REPLACE FUNCTION public._split_numbers_csv(raw TEXT)
@@ -42,7 +61,7 @@ WHERE r.status = 'expired'
        AND p.paid_at          >= r.created_at - INTERVAL '5 minutes'
        AND p.paid_at          <= COALESCE(r.expires_at, p.paid_at) + INTERVAL '6 hours'
        AND (
-            -- Match por numbers CSV exacto
+            -- Match por numbers CSV exacto (desde metadata->>'numbers', nueva columna)
             r.number = ANY(public._split_numbers_csv(p.metadata->>'numbers'))
             OR
             -- O bien: este user sólo tenía 1 pago approved en esta rifa
