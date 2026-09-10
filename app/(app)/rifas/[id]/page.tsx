@@ -1,18 +1,18 @@
-import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import {
-  MapPin,
-  Share2,
+  Award,
+  Calendar,
   Gift,
   Heart,
-  Award,
-  Users,
-  Calendar,
-  ShieldCheck
+  MapPin,
+  Share2,
+  ShieldCheck,
+  Users
 } from "lucide-react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
@@ -20,8 +20,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import RifaDetailActions from "@/components/rifas/RifaDetailActions";
 import { createClient } from "@/lib/supabase/server";
-import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 import type { Rifa, RifaStats } from "@/lib/types";
+import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -43,19 +43,38 @@ async function getRifaById(id: string): Promise<{
 
     const { data: rifaRow, error: rErr } = await supabase
       .from("rifas")
-      .select(
-        `id,creator_id,title,slug,description,prize_name,prize_image_url,
-         prize_value,is_solidarity,cause_name,cause_description,cause_target,
-         number_price,total_numbers,available_numbers,status,ends_at,draw_date,
-         created_at,updated_at,
-         creator:profiles!rifas_creator_id_fkey(id,full_name,avatar_url,country)`
-      )
+      .select(`*`)
       .eq("id", id)
       .maybeSingle();
 
     if (rErr || !rifaRow) return null;
 
-    const rifa = rifaRow as unknown as RifaLookupRow;
+    // Creator se carga en query separada: evita fallar si el nombre del FK
+    //   (rifas_creator_id_fkey) difiere en cloud o si el creator fue borrado.
+    let creator: RifaLookupRow["creator"] = null;
+    const rifaAny = rifaRow as Record<string, unknown>;
+    if (rifaAny.creator_id && typeof rifaAny.creator_id === "string") {
+      try {
+        const { data: creatorRow } = await supabase
+          .from("profiles")
+          .select("id,full_name,avatar_url,country")
+          .eq("id", rifaAny.creator_id)
+          .maybeSingle();
+        if (creatorRow) {
+          const cr = creatorRow as Record<string, unknown>;
+          creator = {
+            id: String(cr.id ?? ""),
+            full_name: String(cr.full_name ?? ""),
+            avatar_url: cr.avatar_url as string | null,
+            country: cr.country as string | null
+          };
+        }
+      } catch {
+        /* creator no disponible, rifa se muestra igual */
+      }
+    }
+
+    const rifa = { ...(rifaRow as unknown as Rifa), creator } as unknown as RifaLookupRow;
     const total = Number(rifa.total_numbers) || 100;
     const avail = Number(rifa.available_numbers) ?? total;
     const sold = Math.max(0, total - avail);
@@ -111,9 +130,7 @@ export default async function RifaDetailPage({
   const { id } = await params;
   const result = await getRifaById(id);
   if (!result) {
-    // Si usuario no auth y la rifa no se pudo cargar → /auth?redirectTo
-    redirect(`/auth?redirectTo=${encodeURIComponent(`/rifas/${id}`)}`);
-    return notFound();
+    notFound();
   }
 
   const { rifa, stats, soldNumbers, mineNumbers, currentUserId } = result;
