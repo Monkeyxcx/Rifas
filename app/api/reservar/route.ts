@@ -249,17 +249,45 @@ export async function POST(req: Request) {
         {
           ok: false,
           error: result.message || "Numero ya vendido/reservado.",
-          failed_number: result.failed_number
+          failed_number: result.failed_number,
+          conflict: true
         },
         { status: 409 }
       );
+    }
+
+    // FIX B#01: Recuperar IDs REALES de la base de datos (no usar sintético generateUUID()).
+    // El RPC buy_reservations insertó N rows. Buscamos esas rows recién creadas por
+    // (rifa_id, user_id, numbers, created_at ±10s) y usamos el PRIMER id real como
+    // reserva_id canónico. Así polling /status, checkout y FK pagos.reserva_id MATCH.
+    let reservaIdReal: string = reservaId; // fallback sintético si falla lookup
+    const supabaseLookup = await createClient();
+    try {
+      const windowStart = new Date(Date.now() - 15_000).toISOString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sbLookup = supabaseLookup as unknown as any;
+      const { data: justInserted } = await sbLookup
+        .from("reservas")
+        .select("id,number,created_at")
+        .eq("rifa_id", rifaId)
+        .eq("user_id", userId as string)
+        .in("number", numbers)
+        .gte("created_at", windowStart)
+        .order("created_at", { ascending: true });
+      const arr = (justInserted ?? []) as unknown[];
+      if (arr.length) {
+        const first = arr[0] as { id: string };
+        reservaIdReal = first.id;
+      }
+    } catch (lookupErr) {
+      console.warn("[reservar] lookup ids reales fallback sintético", lookupErr);
     }
 
     return NextResponse.json(
       {
         ok: true,
         mock_mode: false,
-        reserva_id: reservaId,
+        reserva_id: reservaIdReal,
         rifa_id: rifaId,
         user_id: userId,
         numbers,
