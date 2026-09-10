@@ -85,10 +85,14 @@ export default function RifaDetailActions(props: Props) {
       });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) {
+        // FIX B#11: /api/reservar retorna {ok:false, error:"..."}. Campo correcto
+        // es body.error, no body.mensaje. El mensaje conflict details con el
+        // número exacto que falló viene en failed_number, también lo adjuntamos.
+        const failedNum = body.failed_number ? ` (número ${body.failed_number})` : "";
         const msg =
           body.conflict === true
-            ? body.mensaje ??
-              `Algunos números ya fueron reservados. Actualiza y vuelve a elegir.`
+            ? (body.error ??
+               `Algunos números ya fueron reservados. Actualiza y vuelve a elegir.`) + failedNum
             : body.error ?? "Intenta nuevamente en 30 segundos.";
         void showError({
           title: r.status === 409 ? "Números no disponibles" : "No se pudo reservar",
