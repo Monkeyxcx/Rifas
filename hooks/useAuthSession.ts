@@ -92,12 +92,25 @@ export function useAuthSession(): AuthState {
   const signOut = async () => {
     try {
       setLoading(true);
+      // FIX B#10: Llamar route handler server-side para limpiar cookies
+      // correctamente (createClient SSR), luego redirect client side.
+      try {
+        await fetch("/api/auth/signout", { method: "POST", credentials: "include" });
+      } catch { /* ignore network errors, local signOut anyway */ }
       await supabase.auth.signOut();
       setProfile(null);
       setUser(null);
       setSession(null);
+      // FIX B#10: Redirect explícito para feedback inmediato (no esperar
+      // re-fetch server components ni middleware redirects).
+      if (typeof window !== "undefined") {
+        window.location.href = "/auth";
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "sign out failed");
+      if (typeof window !== "undefined") {
+        window.location.href = "/auth?error=signout";
+      }
     } finally {
       setLoading(false);
     }

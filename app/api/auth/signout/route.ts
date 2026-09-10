@@ -10,14 +10,17 @@ export async function POST() {
     if (error) {
       console.warn("[auth/signout] supabase warning", error.message);
     }
-    const headers = new Headers();
-    headers.set("Location", "/auth");
+    // FIX B#10: Location header solo funciona con status 3xx. Como el
+    // llamador usa fetch POST (no submit formulario), retornamos JSON 200
+    // con redirect_to en el payload. El caller hace window.location.replace
+    // client side para feedback inmediato.
     return NextResponse.json(
-      { ok: true },
       {
-        status: 200,
-        headers
-      }
+        ok: true,
+        redirect_to: "/auth",
+        message: "Sesión cerrada exitosamente"
+      },
+      { status: 200 }
     );
   } catch (e) {
     console.error("[auth/signout] failed", e);
