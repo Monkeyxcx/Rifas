@@ -25,6 +25,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
 const RIFA_PARTICIPACION_SELECT = `
   id, creator_id, title, slug, description, prize_name, prize_image_url,

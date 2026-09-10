@@ -9,6 +9,8 @@ export const metadata = {
     "Crea una rifa en 4 pasos: premio o causa solidaria, números, fechas y listo."
 };
 
+export const dynamic = "force-dynamic";
+
 type PageProps = {
   searchParams: Promise<{ editar?: string }>;
 };

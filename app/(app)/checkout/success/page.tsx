@@ -30,6 +30,7 @@ export const metadata = {
 };
 
 export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
 const RIFA_JOIN_SELECT = `
   id, creator_id, title, slug, description, prize_name, prize_image_url,

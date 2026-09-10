@@ -23,6 +23,8 @@ import { createClient } from "@/lib/supabase/server";
 import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 import type { Rifa, RifaStats } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 type RifaLookupRow = Rifa & {
   creator: { id: string; full_name: string; avatar_url: string | null; country: string | null } | null;
 };

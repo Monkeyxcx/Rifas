@@ -34,6 +34,7 @@ import { redirect } from "next/navigation";
 import type { Rifa, RifaStatus } from "@/lib/types";
 
 export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
 const RIFA_CHECKOUT_SELECT = `
   id, creator_id, title, slug, description, prize_name, prize_image_url,

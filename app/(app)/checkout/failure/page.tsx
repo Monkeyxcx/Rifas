@@ -26,6 +26,8 @@ export const metadata = {
   description: "Tu pago no fue aprobado. Puedes reintentarlo sin perder tus números."
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function CheckoutFailurePage({
   searchParams
 }: {

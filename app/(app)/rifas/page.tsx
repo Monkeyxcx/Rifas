@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Rifa, RifaStats } from "@/lib/types";
 
 export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 async function getActiveRifas(): Promise<Array<{ rifa: Rifa; stats: RifaStats }>> {
   try {

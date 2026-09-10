@@ -12,8 +12,19 @@ type CookieTuple = { name: string; value: string; options?: CookieOptionsWithNam
 export async function createClient() {
   const cookieStore = await cookies();
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    const missing = [] as string[];
+    if (!supabaseUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL");
+    if (!supabaseAnonKey) missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    throw new Error(
+      `[supabase/server] Faltan Environment Variables OBLIGATORIAS: ${missing.join(", ")}. ` +
+        `Estas variables son necesarias para crear el cliente SSR de Supabase. ` +
+        `Si estás en Vercel: entra Project → Settings → Environment Variables y agrega esas keys (deben estar marcadas para Build + Runtime Production).`
+    );
+  }
 
   return createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -36,10 +47,17 @@ export async function createClient() {
 }
 
 export function createServiceClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  if (!serviceRoleKey) {
-    throw new Error("[supabase/server] SUPABASE_SERVICE_ROLE_KEY no está en .env — webhooks y RPC bypass RLS requieren service role.");
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    const missing = [] as string[];
+    if (!supabaseUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL");
+    if (!serviceRoleKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+    throw new Error(
+      `[supabase/server] Faltan Environment Variables OBLIGATORIAS (service client): ${missing.join(", ")}. ` +
+        `SUPABASE_SERVICE_ROLE_KEY es requerido para webhooks y RPC que hacen bypass a RLS. ` +
+        `En Vercel: Project → Settings → Environment Variables → Añadir con visibilidad Production (no la pública / NEXT_PUBLIC).`
+    );
   }
   return createServerClient<Database>(supabaseUrl, serviceRoleKey, {
     cookies: {

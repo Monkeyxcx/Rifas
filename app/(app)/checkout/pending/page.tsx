@@ -23,6 +23,8 @@ export const metadata = {
   description: "Tu pago está siendo procesado por Mercado Pago."
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function CheckoutPendingPage({
   searchParams
 }: {

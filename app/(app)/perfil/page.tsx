@@ -34,6 +34,7 @@ import { ProfileSignOutButton } from "@/components/profile/ProfileSignOutButton"
 import { ProfileSaveForm } from "@/components/profile/ProfileSaveForm";
 
 export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
 type NavItem = {
   id: string;

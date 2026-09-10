@@ -23,6 +23,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
 const CREATOR_PROFILES_FRAGMENT = `
   id, full_name, avatar_url, country
