@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,20 +20,45 @@ async function q<T = unknown>(
   return data;
 }
 
-export async function GET() {
-  const authHeader =
-    (process.env.CRON_SECRET &&
-      `Bearer ${process.env.CRON_SECRET}`) ||
-    null;
-  return _runJob(authHeader);
+export async function GET(req: Request) {
+  const expected = process.env.CRON_SECRET?.trim();
+  const received = req.headers.get("authorization")?.trim() || null;
+  return _runJob(expected || null, received);
 }
 
 export async function POST(req: Request) {
-  const authFromHeader = req.headers.get("authorization") || null;
-  return _runJob(authFromHeader);
+  const expected = process.env.CRON_SECRET?.trim();
+  const received = req.headers.get("authorization")?.trim() || null;
+  return _runJob(expected || null, received);
 }
 
-async function _runJob(expectedBearer: string | null) {
+/**
+ * Protege el cron:
+ * - Si CRON_SECRET NO está seteado (default Hobby): pasamos sin auth para que
+ *   puedas crear el cron sin variables extra.
+ * - Si CRON_SECRET ESTÁ seteado: Vercel envía `Authorization: Bearer <CRON_SECRET>`.
+ *   Cualquier request sin ese header exacto retorna HTTP 401 Unauthorized.
+ */
+async function _runJob(
+  expectedBearer: string | null,
+  receivedHeader: string | null
+) {
+  if (expectedBearer) {
+    const correct = `Bearer ${expectedBearer}`;
+    if (!receivedHeader || receivedHeader !== correct) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Unauthorized. CRON_SECRET está definido; este endpoint requiere " +
+            "el header `Authorization: Bearer <CRON_SECRET>` (Vercel lo envía " +
+            "automáticamente si la variable existe en Environment Variables)."
+        },
+        { status: 401 }
+      );
+    }
+  }
+
   try {
     const nowIso = new Date().toISOString();
     const supabase = createServiceClient();
