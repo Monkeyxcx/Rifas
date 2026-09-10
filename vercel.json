@@ -45,12 +45,6 @@
       "maxDuration": 15
     }
   },
-  "crons": [
-    {
-      "path": "/api/cron/limpiar-reservas",
-      "schedule": "37 4 * * *"
-    }
-  ],
   "git": {
     "deploymentEnabled": {
       "main": true,
