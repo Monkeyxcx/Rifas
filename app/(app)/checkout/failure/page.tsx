@@ -46,8 +46,10 @@ export default async function CheckoutFailurePage({
 
   const retryHref =
     rifaId && numbersQuery
-      ? `/checkout/REINTENTO-${Date.now().toString(36).toUpperCase()}?rifa_id=${rifaId}&numbers=${numbersQuery}`
-      : "/mis-rifas/participando";
+      ? `/rifas/${rifaId}?numbers=${numbersQuery}`
+      : rifaId
+        ? `/rifas/${rifaId}`
+        : "/mis-rifas/participando";
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 via-rose-50/30 to-slate-50">
@@ -88,8 +90,9 @@ export default async function CheckoutFailurePage({
                 Tu pago no fue aprobado esta vez
               </h1>
               <p className="mt-1.5 sm:mt-2 max-w-xl text-xs sm:text-sm text-white/90 lg:text-base leading-relaxed">
-                ¡No te preocupes! Tus números siguen reservados durante el plazo de gracia.
-                Puedes reintentar el pago las veces que necesites.
+                Tu pago no fue aprobado. Si aún no pasaron 15 min desde que reservaste, los
+                números siguen tuyos unos minutos más; si ya expiraron se liberaron automáticamente
+                y los puedes volver a escoger abajo.
               </p>
             </div>
           </div>

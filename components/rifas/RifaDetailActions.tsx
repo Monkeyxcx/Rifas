@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { ShieldCheck, CreditCard, Loader2 } from "lucide-react";
 import { showError, showWarning } from "@/lib/ui/modals";
+import { CreditCard, Loader2, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
@@ -25,6 +25,7 @@ interface Props {
   availableCount: number;
   soldPercentage: number;
   soldOut: boolean;
+  initialNumbers?: string[];
 }
 
 export default function RifaDetailActions(props: Props) {
@@ -38,11 +39,17 @@ export default function RifaDetailActions(props: Props) {
     mineNumbers,
     availableCount,
     soldPercentage,
-    soldOut
+    soldOut,
+    initialNumbers
   } = props;
 
   const router = useRouter();
-  const [selected, setSelected] = useState<string[]>([]);
+  const safeInitial: string[] = Array.isArray(initialNumbers)
+    ? initialNumbers.filter(
+        (n) => typeof n === "string" && !soldNumbers.has(n) && !mineNumbers.has(n)
+      )
+    : [];
+  const [selected, setSelected] = useState<string[]>(safeInitial);
   const [loading, setLoading] = useState(false);
 
   const subtotal = selected.length * numberPrice;
@@ -126,6 +133,7 @@ export default function RifaDetailActions(props: Props) {
       soldNumbers={soldNumbers}
       mineNumbers={mineNumbers}
       maxSelections={20}
+      initialSelected={safeInitial}
       onChange={(sel) => setSelected(sel)}
     />
   );

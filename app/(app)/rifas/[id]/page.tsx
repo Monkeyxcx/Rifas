@@ -73,6 +73,21 @@ async function getRifaById(id: string): Promise<{
     }
 
     const rifa = { ...(rifaRow as unknown as Rifa), creator } as unknown as RifaLookupRow;
+
+    // ================================================================
+    // LAZY EXPIRE INLINE — NO esperar cron 24h Vercel Hobby.
+    // Cada page load limpia las reservas vencidas status=reserved pero
+    // expires_at<NOW. Trigger trg_sync_rifa_available actualiza solo
+    // rifas.available_numbers sin drift. service_role bypass RLS.
+    // ================================================================
+    try {
+      const adminSb = createServiceClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (adminSb as any).rpc("expire_rifa_reservations", { p_rifa_id: rifa.id });
+    } catch {
+      /* no-op: RPC puede no estar aplicado aún en cloud, sin romper render */
+    }
+
     const total = Number(rifa.total_numbers) || 100;
     const avail = Number(rifa.available_numbers) ?? total;
     const sold = Math.max(0, total - avail);
@@ -122,12 +137,23 @@ async function getRifaById(id: string): Promise<{
 }
 
 export default async function RifaDetailPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ numbers?: string }>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
   const result = await getRifaById(id);
+
+  const NUM_RE = /^\d{2}$/;
+  const preselectedNumbers: string[] = Array.isArray(sp?.numbers)
+    ? []
+    : (sp?.numbers ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter((n) => NUM_RE.test(n));
   if (!result) {
     notFound();
   }
@@ -414,6 +440,7 @@ export default async function RifaDetailPage({
                 availableCount={stats.available_numbers}
                 soldPercentage={stats.sold_percentage}
                 soldOut={soldOut}
+                initialNumbers={preselectedNumbers}
               />
             </TabsContent>
 

@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn, formatCurrency, generateRaffleNumbers, padRaffleNumber } from "@/lib/utils";
+import { cn, generateRaffleNumbers } from "@/lib/utils";
 
 export type NumberState = "available" | "selected" | "sold" | "mine";
 
@@ -15,6 +14,7 @@ interface NumberGridProps {
   mineNumbers?: Set<string>;
   onChange?: (selected: string[]) => void;
   maxSelections?: number;
+  initialSelected?: string[];
 }
 
 export default function NumberGrid({
@@ -23,7 +23,8 @@ export default function NumberGrid({
   soldNumbers,
   mineNumbers,
   onChange,
-  maxSelections = 20
+  maxSelections = 20,
+  initialSelected
 }: NumberGridProps) {
   const allNumbers = useMemo(() => generateRaffleNumbers(totalNumbers), [totalNumbers]);
   const computedSold = useMemo(
@@ -32,7 +33,13 @@ export default function NumberGrid({
   );
   const mine = mineNumbers ?? new Set<string>();
 
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(() => {
+    const safe = Array.isArray(initialSelected) ? initialSelected : [];
+    const filtered = safe.filter(
+      (n) => typeof n === "string" && !computedSold.has(n) && !mine.has(n)
+    );
+    return new Set<string>(filtered.slice(0, maxSelections));
+  });
 
   function toggle(num: string) {
     if (computedSold.has(num)) return;
