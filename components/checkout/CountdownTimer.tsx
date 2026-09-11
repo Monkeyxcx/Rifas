@@ -98,7 +98,7 @@ export default function CountdownTimer({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-2xl border p-4 backdrop-blur",
+        "flex items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl border p-3 sm:p-4 backdrop-blur",
         styles,
         className
       )}
@@ -107,7 +107,7 @@ export default function CountdownTimer({
     >
       <div
         className={cn(
-          "grid h-10 w-10 shrink-0 place-items-center rounded-xl",
+          "grid h-8 w-8 sm:h-10 sm:w-10 shrink-0 place-items-center rounded-lg sm:rounded-xl",
           effectiveVariant === "expired"
             ? "bg-slate-200 text-slate-600"
             : effectiveVariant === "urgent"
@@ -115,19 +115,19 @@ export default function CountdownTimer({
             : "bg-emerald-100 text-emerald-600"
         )}
       >
-        <Icon className="h-5 w-5" strokeWidth={2.3} />
+        <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={2.3} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <p className="text-xs font-semibold uppercase tracking-wide opacity-80">
+        <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide opacity-80">
           Tiempo restante
         </p>
-        <p className="mt-0.5 text-lg font-bold font-numbers tabular-nums tracking-tight">
-          <span className="text-2xl">{mm}</span>
-          <span className="mx-1 opacity-60">:</span>
-          <span className="text-2xl">{ss}</span>
-          <span className="ml-2 text-sm font-medium opacity-80">minutos</span>
+        <p className="mt-0.5 text-sm sm:text-lg font-bold font-numbers tabular-nums tracking-tight">
+          <span className="text-xl sm:text-2xl">{mm}</span>
+          <span className="mx-0.5 sm:mx-1 opacity-60">:</span>
+          <span className="text-xl sm:text-2xl">{ss}</span>
+          <span className="ml-1 sm:ml-2 text-[11px] sm:text-sm font-medium opacity-80 hidden sm:inline">min</span>
         </p>
-        <p className="mt-1 text-xs font-medium opacity-80 truncate">{label}</p>
+        <p className="mt-0.5 text-[10px] sm:text-xs font-medium opacity-80 truncate leading-tight">{label}</p>
       </div>
     </div>
   );

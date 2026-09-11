@@ -379,7 +379,7 @@ export async function POST(req: NextRequest) {
             if (row && row[0]?.id) reservaIdRealParaPagos = row[0].id as string;
           }
 
-          // 4c. Insert Pago
+          // 4c. Insert Pago (siempre — approved o no, para trazabilidad)
           const pagoId = generateUUID();
           const pagoRow = {
             id: pagoId,
@@ -402,11 +402,29 @@ export async function POST(req: NextRequest) {
           };
           await q(sb.from("pagos").insert(pagoRow));
 
-          // 4d. Si approved → actualizar reservas a paid
-          if (status === "approved") {
-            const newStatusPaid: ReservaStatus = "paid";
-            const nowIso = new Date().toISOString();
-            if (rifaIdRaw && numbers.length) {
+          const nowIso = new Date().toISOString();
+
+          // ================================================================
+          // 4d. SIDE EFFECTS por status de pago
+          //     - approved  → reservas.status = 'paid' (vendido)
+          //     - rejected | cancelled | charged_back | refunded | expired
+          //                 → reservas.status = 'cancelled' (libera números)
+          //     - pending / in_process / in_mediation → NADA, esperamos
+          //       expires_at o próximo webhook.
+          // Trigger trg_sync_rifa_available actualiza available_numbers SOLO.
+          // ================================================================
+          const FINAL_APPROVED = new Set(["approved"]);
+          const FINAL_REJECTED = new Set([
+            "rejected",
+            "cancelled",
+            "charged_back",
+            "refunded",
+            "expired"
+          ]);
+
+          if (rifaIdRaw && numbers.length) {
+            if (FINAL_APPROVED.has(status as string)) {
+              const newStatusPaid: ReservaStatus = "paid";
               // FIX B#03: filtros user_id + status=reserved para NO actualizar
               // reservas expiradas/canceladas de OTROS usuarios que recompraron
               // los mismos números. Integridad de datos.
@@ -419,24 +437,59 @@ export async function POST(req: NextRequest) {
                   .eq("user_id", user_id as string)
                   .eq("status", "reserved")
               );
-            }
 
-            // 4e. Notificación pago_aprobado
-            if (user_id) {
-              const notiRow = {
-                id: generateUUID(),
-                user_id,
-                rifa_id: rifaIdRaw,
-                type: "pago_aprobado",
-                title: "¡Pago aprobado! 🎉",
-                message: `Tu pago por ${numbers.length} número${numbers.length === 1 ? "" : "s"} (${numbers.join(", ")}) fue aprobado exitosamente. Revisa mis rifas para ver tu ticket oficial.`,
-                action_url: "/mis-rifas/participando",
-                read_at: null,
-                created_at: new Date().toISOString()
-              };
-              await q(sb.from("notifications").insert(notiRow));
+              // 4e. Notificación pago_aprobado
+              if (user_id) {
+                const notiRow = {
+                  id: generateUUID(),
+                  user_id,
+                  rifa_id: rifaIdRaw,
+                  type: "pago_aprobado",
+                  title: "¡Pago aprobado! 🎉",
+                  message: `Tu pago por ${numbers.length} número${numbers.length === 1 ? "" : "s"} (${numbers.join(", ")}) fue aprobado exitosamente. Revisa mis rifas para ver tu ticket oficial.`,
+                  action_url: "/mis-rifas/participando",
+                  read_at: null,
+                  created_at: nowIso
+                };
+                await q(sb.from("notifications").insert(notiRow));
+                console.log(
+                  `[mercadopago/webhook] side-effects OK pago id=${payment.id} status=approved pagos.pago_id=${pagoId}`
+                );
+              }
+            } else if (FINAL_REJECTED.has((status as string).toLowerCase())) {
+              // Pago rechazado/finalizado mal → LIBERAR los números status='reserved'
+              // de ESTE usuario (NO tocar reservas de otros con mismo number).
+              const newStatusCancel: ReservaStatus = "cancelled";
+              await q(
+                sb
+                  .from("reservas")
+                  .update({ status: newStatusCancel, updated_at: nowIso })
+                  .eq("rifa_id", rifaIdRaw)
+                  .in("number", numbers)
+                  .eq("user_id", user_id as string)
+                  .eq("status", "reserved")
+              );
+
+              if (user_id) {
+                const notiRow = {
+                  id: generateUUID(),
+                  user_id,
+                  rifa_id: rifaIdRaw,
+                  type: "pago_rechazado",
+                  title: "Pago no aprobado",
+                  message: `Tu pago por ${numbers.length} número${numbers.length === 1 ? "" : "s"} (${numbers.join(", ")}) no fue aprobado. Los números fueron liberados — vuelve a seleccionar y pagar para reservarlos de nuevo.`,
+                  action_url: `/rifas/${rifaIdRaw}?numbers=${numbers.join(",")}`,
+                  read_at: null,
+                  created_at: nowIso
+                };
+                await q(sb.from("notifications").insert(notiRow)).catch(() => null);
+                console.log(
+                  `[mercadopago/webhook] side-effects OK pago id=${payment.id} status=${status} reservas cancelled ${numbers.length} nros.`
+                );
+              }
+            } else {
               console.log(
-                `[mercadopago/webhook] side-effects OK pago id=${payment.id} status=approved pagos.pago_id=${pagoId}`
+                `[mercadopago/webhook] status=${status} NO final — NINGÚN side-effect sobre reservas. Espera próximo webhook o expires_at.`
               );
             }
           }

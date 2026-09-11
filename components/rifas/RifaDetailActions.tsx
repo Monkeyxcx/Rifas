@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { ShieldCheck, CreditCard, Loader2 } from "lucide-react";
 import { showError, showWarning } from "@/lib/ui/modals";
+import { CreditCard, Loader2, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
@@ -25,6 +25,7 @@ interface Props {
   availableCount: number;
   soldPercentage: number;
   soldOut: boolean;
+  initialNumbers?: string[];
 }
 
 export default function RifaDetailActions(props: Props) {
@@ -38,11 +39,17 @@ export default function RifaDetailActions(props: Props) {
     mineNumbers,
     availableCount,
     soldPercentage,
-    soldOut
+    soldOut,
+    initialNumbers
   } = props;
 
   const router = useRouter();
-  const [selected, setSelected] = useState<string[]>([]);
+  const safeInitial: string[] = Array.isArray(initialNumbers)
+    ? initialNumbers.filter(
+        (n) => typeof n === "string" && !soldNumbers.has(n) && !mineNumbers.has(n)
+      )
+    : [];
+  const [selected, setSelected] = useState<string[]>(safeInitial);
   const [loading, setLoading] = useState(false);
 
   const subtotal = selected.length * numberPrice;
@@ -125,8 +132,8 @@ export default function RifaDetailActions(props: Props) {
       numberPrice={numberPrice}
       soldNumbers={soldNumbers}
       mineNumbers={mineNumbers}
-      soldPercentage={soldPercentage}
       maxSelections={20}
+      initialSelected={safeInitial}
       onChange={(sel) => setSelected(sel)}
     />
   );
@@ -136,60 +143,64 @@ export default function RifaDetailActions(props: Props) {
       <Card className="border border-slate-200 overflow-hidden shadow-[0_16px_50px_-24px_rgba(15,23,42,0.15)]">
         <div
           className={cn(
-            "px-5 py-4",
+            "px-4 py-3 sm:px-5 sm:py-4",
             isSolidarity
               ? "bg-gradient-to-r from-brand-cyan to-brand-rose text-white"
               : "bg-gradient-to-r from-brand-rose to-brand-violet text-white"
           )}
         >
-          <div className="text-[11px] uppercase tracking-[0.2em] opacity-85 font-bold">
+          <div className="text-[10px] sm:text-[11px] uppercase tracking-[0.18em] opacity-85 font-bold">
             {titleHeader}
           </div>
           <div className="mt-1 flex items-end justify-between gap-3">
             <div>
-              <div className="text-[11px] opacity-80 font-semibold">
+              <div className="text-[10px] sm:text-[11px] opacity-80 font-semibold">
                 Precio por número
               </div>
-              <div className="font-display font-black text-3xl leading-none tabular-nums">
+              <div className="font-display font-black text-2xl sm:text-3xl leading-none tabular-nums">
                 {formatCurrency(numberPrice)}
               </div>
             </div>
             <Badge
               variant="secondary"
-              className="!bg-white/20 !text-white !border-white/30 !border backdrop-blur"
+              className="!bg-white/20 !text-white !border-white/30 !border backdrop-blur !text-[11px]"
             >
-              ⚡ {availableCount} disponibles
+              ⚡ {availableCount} disp.
             </Badge>
           </div>
         </div>
 
-        <CardContent className="p-5 space-y-4">
+        <CardContent className="p-4 sm:p-5 space-y-4">
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-              <span>Avance de venta</span>
+            <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 font-medium">
+              <span>Venta</span>
               <span className="font-numbers tabular-nums font-bold text-slate-700">
                 {soldPercentage}%
               </span>
             </div>
             <Progress
               value={soldPercentage}
-              className="h-2.5 [&>div]:bg-gradient-to-r [&>div]:from-brand-rose [&>div]:to-brand-violet [&>div]:rounded-full"
+              className="h-2 sm:h-2.5 [&>div]:bg-gradient-to-r [&>div]:from-brand-rose [&>div]:to-brand-violet [&>div]:rounded-full"
             />
-            <div className="text-[11px] text-slate-400 font-numbers tabular-nums">
-              {totalNumbers - availableCount} vendidos · {availableCount}{" "}
-              disponibles · {totalNumbers} total
-            </div>
           </div>
 
           <Separator />
 
-          <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
-            <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">
-              Tu carrito
+          <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 sm:p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-slate-500 font-bold">
+                Selección ({selected.length || 0})
+              </div>
+              <Badge
+                variant="outline"
+                className="!border-emerald-200 !bg-emerald-50 !text-emerald-700 !text-[10px] sm:!text-[11px] shrink-0 py-0"
+              >
+                <ShieldCheck className="h-3 w-3 mr-1" /> Pago seguro
+              </Badge>
             </div>
             {selected.length === 0 ? (
-              <div className="text-xs text-slate-400 italic">
-                Aún no has seleccionado ningún número. Clic en la cuadrícula.
+              <div className="text-xs text-slate-400 italic py-1">
+                Elige números para continuar.
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-1.5">
@@ -197,37 +208,36 @@ export default function RifaDetailActions(props: Props) {
                   <Badge
                     key={n}
                     variant="active"
-                    className="px-2.5 py-0.5 text-xs font-numbers tabular-nums"
+                    className="px-2 py-0.5 text-[11px] sm:text-xs font-numbers tabular-nums"
                   >
                     {n}
                   </Badge>
                 ))}
               </div>
             )}
-            <div className="flex items-center justify-between pt-1">
-              <div>
-                <div className="text-[11px] text-slate-400 uppercase tracking-wider font-bold">
-                  Subtotal ({selected.length || 0}{" "}
-                  {selected.length === 1 ? "núm." : "núms."}
-                </div>
-                <div className="font-display font-black text-2xl tabular-nums text-slate-900">
+            <div className="space-y-0.5 pt-1 border-t border-slate-200/70">
+              <div className="flex items-center justify-between text-[11px] text-slate-500">
+                <span>Subtotal</span>
+                <span className="font-numbers tabular-nums font-semibold text-slate-700">
                   {formatCurrency(subtotal)}
-                </div>
-                {fee > 0 && (
-                  <div className="text-[11px] text-slate-400">
-                    + plataforma {formatCurrency(fee)} =
-                    <span className="ml-1 font-bold text-slate-700">
-                      {formatCurrency(total)}
-                    </span>
-                  </div>
-                )}
+                </span>
               </div>
-              <Badge
-                variant="outline"
-                className="!border-emerald-200 !bg-emerald-50 !text-emerald-700 shrink-0"
-              >
-                <ShieldCheck className="h-3 w-3 mr-1" /> Pago seguro
-              </Badge>
+              {fee > 0 && (
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <span>Plataforma (3%)</span>
+                  <span className="font-numbers tabular-nums font-semibold text-slate-700">
+                    {formatCurrency(fee)}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">
+                  Total
+                </span>
+                <span className="font-display font-black text-xl sm:text-2xl tabular-nums text-slate-900">
+                  {formatCurrency(total)}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -236,58 +246,44 @@ export default function RifaDetailActions(props: Props) {
             disabled={soldOut || loading || selected.length === 0}
             onClick={reserveAndPay}
             className={cn(
-              "w-full h-12 text-base font-bold rounded-xl shadow-cta active:scale-[0.98]",
+              "w-full h-11 sm:h-12 text-sm sm:text-base font-bold rounded-xl shadow-cta active:scale-[0.98]",
               soldOut
                 ? "!bg-slate-300 !text-slate-500"
                 : "!bg-gradient-to-r from-brand-rose to-brand-violet !text-white"
             )}
           >
             {soldOut ? (
-              <>Todos los números vendidos — agotada</>
+              <>Agotada</>
             ) : loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Reservando tus números…
+                Reservando…
               </>
             ) : (
               <>
                 <CreditCard className="h-4 w-4 mr-2" />
-                Reservar y pagar · Mercado Pago
+                Reservar y pagar
               </>
             )}
           </Button>
 
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-              🔒 SSL encriptado
+          <div className="grid grid-cols-2 gap-2 pt-0.5">
+            <div className="text-[10px] sm:text-[11px] text-slate-400 flex items-center gap-1.5">
+              🔒 SSL
             </div>
-            <div className="text-[11px] text-slate-400 flex items-center gap-1.5 justify-end">
-              ⏱ Reserva 15 min
+            <div className="text-[10px] sm:text-[11px] text-slate-400 flex items-center gap-1.5 justify-end">
+              ⏱ Bloqueo 15 min
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border border-dashed border-slate-200 bg-slate-50/60">
-        <CardContent className="p-4 text-xs space-y-2">
-          <div className="font-semibold text-slate-700 flex items-center gap-2">
-            🛡️ Nuestros 4 niveles anti-doble venta
-          </div>
-          <ol className="space-y-1 text-slate-500 list-decimal list-inside">
-            <li>Bloqueo inmediato UI al hacer clic</li>
-            <li>Transacción SERVIDOR con Row Lock</li>
-            <li>RPC `buy_reservations` FOR UPDATE</li>
-            <li>Unique Index parcial Postgres</li>
-          </ol>
         </CardContent>
       </Card>
     </aside>
   );
 
   return (
-    <div className="grid gap-8 lg:grid-cols-5 w-full">
-      <div className="lg:col-span-3">{numberGrid}</div>
-      <div className="lg:col-span-2">{paymentAside}</div>
+    <div className="grid gap-4 sm:gap-6 lg:gap-8 lg:grid-cols-5 w-full overflow-hidden">
+      <div className="lg:col-span-3 min-w-0 w-full">{numberGrid}</div>
+      <div className="lg:col-span-2 min-w-0 w-full">{paymentAside}</div>
     </div>
   );
 }

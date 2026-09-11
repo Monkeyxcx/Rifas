@@ -39,8 +39,63 @@ export interface Perfil {
   bio: string | null;
   wallet_balance: number;
   is_verified: boolean;
+  is_admin: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type NequiVerificationStatus = "pending" | "approved" | "rejected";
+
+export interface UserNequiVerification {
+  id: ID;
+  user_id: ID;
+  nequi_phone: string;
+  document_type: string;
+  document_number: string;
+  document_image_url: string;
+  nequi_certificate_url: string;
+  nequi_qr_url: string | null;
+  status: NequiVerificationStatus;
+  review_admin_id: ID | null;
+  review_notes: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // JOINED
+  user?: Pick<Perfil, "id" | "full_name" | "avatar_url" | "phone"> | null;
+}
+
+export interface RifaPaymentMethods {
+  rifa_id: ID;
+  accept_mercado_pago: boolean;
+  accept_nequi: boolean;
+  nequi_phone_override: string | null;
+  nequi_qr_override_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type NequiPaymentStatus = "pending" | "approved" | "rejected";
+
+export interface NequiPayment {
+  id: ID;
+  rifa_id: ID;
+  user_id: ID;
+  reserva_ids: ID[];
+  numbers: string[];
+  amount: number;
+  voucher_image_url: string;
+  voucher_reference: string | null;
+  payer_phone: string | null;
+  status: NequiPaymentStatus;
+  reviewed_by: ID | null;
+  review_notes: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // JOINED
+  user?: Pick<Perfil, "id" | "full_name" | "avatar_url"> | null;
+  rifa?: Pick<Rifa, "id" | "title"> | null;
 }
 
 export interface Rifa {
