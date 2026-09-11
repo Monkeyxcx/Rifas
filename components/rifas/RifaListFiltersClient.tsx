@@ -1,27 +1,27 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import {
-  Search,
-  SlidersHorizontal,
-  Ticket,
-  Heart,
-  Trophy,
-  TrendingUp,
-  Clock,
-  Sparkles,
-  X
-} from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { RifaCard } from "@/components/rifas/RifaCard";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Rifa, RifaStats } from "@/lib/types";
 import { cn, formatCurrency } from "@/lib/utils";
+import {
+  Clock,
+  Heart,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Ticket,
+  TrendingUp,
+  Trophy,
+  X
+} from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 type SortKey = "trending" | "ending" | "newest" | "cheapest";
 
@@ -168,10 +168,10 @@ export default function RifaListFiltersClient(props: Props) {
     query.trim().length > 0 || tab !== "all" || sort !== "trending" || maxPrice < props.maxPriceAvailable;
 
   return (
-    <div className="relative pb-16">
+    <div className="relative pb-16 w-full overflow-hidden">
       {/* Header */}
       <div
-        className="relative overflow-hidden border-b border-slate-200/70"
+        className="relative overflow-hidden border-b border-slate-200/70 w-full"
         style={{
           background:
             "linear-gradient(180deg, hsla(348, 97%, 62%, 0.08), hsla(0,0%,100%,0) 60%), radial-gradient(circle at 80% 0%, hsla(270,95%,60%,0.1), transparent 45%)"
@@ -185,51 +185,51 @@ export default function RifaListFiltersClient(props: Props) {
               "radial-gradient(circle at 10% 20%, hsla(348,97%,62%,0.16) 0, transparent 45%)"
           }}
         />
-        <div className="container max-w-content py-10 md:py-14 relative">
-          <div className="flex flex-col gap-4 md:gap-6">
+        <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 py-8 sm:py-10 md:py-14 relative overflow-hidden">
+          <div className="flex flex-col gap-3 sm:gap-4 md:gap-6 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-              <div>
+              <div className="min-w-0">
                 <Badge variant="active" className="mb-3 gap-1.5">
                   <Sparkles className="h-3.5 w-3.5" />
                   {props.totalRifas} rifa{props.totalRifas === 1 ? "" : "s"} activa
                   {props.totalRifas === 1 ? "" : "s"} en este momento
                 </Badge>
-                <h1 className="font-display font-black tracking-tight text-3xl md:text-4xl leading-tight">
+                <h1 className="font-display font-black tracking-tight text-2xl sm:text-3xl md:text-4xl leading-tight min-w-0 break-words">
                   Explora y participa en rifas de{" "}
                   <span className="bg-gradient-to-r from-brand-rose via-fuchsia-500 to-brand-violet bg-clip-text text-transparent">
                     premios increíbles
                   </span>{" "}
                   o causas solidarias
                 </h1>
-                <p className="mt-3 text-slate-600 max-w-2xl leading-relaxed">
+                <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-slate-600 max-w-2xl leading-relaxed">
                   Busca por el premio que te apasione, la causa que quieras apoyar o el
                   precio de número que prefieras. Pago seguro con Mercado Pago.
                 </p>
               </div>
-              <div className="flex gap-3 text-xs">
-                <div className="rounded-xl bg-white/80 backdrop-blur px-4 py-3 shadow-sm border border-slate-200/80 min-w-[140px]">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 text-xs w-full sm:w-auto min-w-0">
+                <div className="rounded-xl bg-white/80 backdrop-blur px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm border border-slate-200/80 flex-1 sm:min-w-[140px]">
                   <div className="inline-flex items-center gap-1 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
                     <Trophy className="h-3.5 w-3.5 text-brand-gold" />
                     Recaudado
                   </div>
-                  <div className="font-display font-extrabold text-slate-900 text-lg">
+                  <div className="font-display font-extrabold text-slate-900 text-base sm:text-lg truncate">
                     {formatCurrency(props.totalRaised)}
                   </div>
                 </div>
-                <div className="rounded-xl bg-white/80 backdrop-blur px-4 py-3 shadow-sm border border-slate-200/80 min-w-[140px]">
+                <div className="rounded-xl bg-white/80 backdrop-blur px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm border border-slate-200/80 flex-1 sm:min-w-[140px]">
                   <div className="inline-flex items-center gap-1 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
                     <Ticket className="h-3.5 w-3.5 text-brand-cyan" />
                     Nros vendidos
                   </div>
-                  <div className="font-display font-extrabold text-slate-900 text-lg">
+                  <div className="font-display font-extrabold text-slate-900 text-base sm:text-lg">
                     {props.totalNumbersSold.toLocaleString("es-419")}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="relative mt-1 max-w-3xl group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-slate-400 group-focus-within:text-brand-rose transition-colors" />
+            <div className="relative mt-1 max-w-3xl group w-full min-w-0">
+              <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-4.5 sm:w-4.5 text-slate-400 group-focus-within:text-brand-rose transition-colors" />
               <Input
                 value={query}
                 onChange={(e) => {
@@ -238,14 +238,14 @@ export default function RifaListFiltersClient(props: Props) {
                 }}
                 name="q"
                 placeholder="Busca un premio, causa solidaria o creador…"
-                className="h-12 pl-11 pr-12 rounded-2xl border-slate-200 bg-white shadow-sm text-base focus:ring-2 focus:ring-brand-rose/20 focus:border-brand-rose/60"
+                className="h-11 sm:h-12 pl-10 sm:pl-11 pr-10 sm:pr-12 rounded-2xl border-slate-200 bg-white shadow-sm text-sm sm:text-base focus:ring-2 focus:ring-brand-rose/20 focus:border-brand-rose/60 w-full"
               />
               {query && (
                 <button
                   type="button"
                   onClick={() => syncURL({ q: "" })}
                   aria-label="Limpiar búsqueda"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -256,61 +256,63 @@ export default function RifaListFiltersClient(props: Props) {
       </div>
 
       {/* Filtros */}
-      <div className="container max-w-content mt-6 md:mt-8">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <Tabs value={tab} onValueChange={(v) => syncURL({ tab: v })} className="w-full">
-            <TabsList className="inline-flex rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-1 shadow-sm">
+        <div className="w-full max-w-5xl mx-auto mt-6 md:mt-8 px-2 sm:px-4 overflow-hidden">
+        <div className="flex flex-col gap-3 sm:gap-4">
+          <Tabs value={tab} onValueChange={(v) => syncURL({ tab: v })} className="w-full min-w-0">
+            <TabsList className="flex overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-none rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-1 shadow-sm gap-1 w-full">
               <TabsTrigger
                 value="all"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand-rose data-[state=active]:to-brand-violet data-[state=active]:text-white rounded-xl h-9 px-4"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand-rose data-[state=active]:to-brand-violet data-[state=active]:text-white rounded-xl h-8 sm:h-9 px-2.5 sm:px-4 text-xs sm:text-sm shrink-0"
               >
-                <Ticket className="h-4 w-4 mr-1.5" />
+                <Ticket className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-1.5" />
                 Todas
               </TabsTrigger>
               <TabsTrigger
                 value="solidarity"
-                className="data-[state=active]:bg-gradient-solidario data-[state=active]:text-white rounded-xl h-9 px-4"
+                className="data-[state=active]:bg-gradient-solidario data-[state=active]:text-white rounded-xl h-8 sm:h-9 px-2.5 sm:px-4 text-xs sm:text-sm shrink-0"
               >
-                <Heart className="h-4 w-4 mr-1.5" fill="currentColor" />
-                Solidarias <span className="ml-1.5 opacity-75 text-xs">({props.totalSolidarity})</span>
+                <Heart className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-1.5" fill="currentColor" />
+                Solidarias <span className="ml-1 sm:ml-1.5 opacity-75 text-[10px] sm:text-xs">({props.totalSolidarity})</span>
               </TabsTrigger>
               <TabsTrigger
                 value="premium"
-                className="data-[state=active]:bg-gradient-premio data-[state=active]:text-slate-900 rounded-xl h-9 px-4"
+                className="data-[state=active]:bg-gradient-premio data-[state=active]:text-slate-900 rounded-xl h-8 sm:h-9 px-2.5 sm:px-4 text-xs sm:text-sm shrink-0"
               >
-                <Trophy className="h-4 w-4 mr-1.5" />
-                Grandes premios
+                <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-1.5" />
+                <span className="hidden sm:inline">Grandes premios</span>
+                <span className="sm:hidden">Premios</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 mr-1">
-              <SlidersHorizontal className="h-4 w-4" />
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
+            <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-semibold text-slate-500 mr-0 sm:mr-1 shrink-0">
+              <SlidersHorizontal className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Ordenar:
             </span>
             {(
               [
-                { k: "trending", label: "Tendencia", icon: TrendingUp },
-                { k: "ending", label: "Cierran pronto", icon: Clock },
-                { k: "newest", label: "Nuevas", icon: Sparkles },
-                { k: "cheapest", label: "Económicas", icon: Ticket }
-              ] as Array<{ k: SortKey; label: string; icon: typeof TrendingUp }>
-            ).map(({ k, label, icon: Icon }) => (
+                { k: "trending", label: "🔥 Tend.", labelSm: "Tendencia", icon: TrendingUp },
+                { k: "ending", label: "⏱ Cierran", labelSm: "Cierran pronto", icon: Clock },
+                { k: "newest", label: "✨ Nuevas", labelSm: "Nuevas", icon: Sparkles },
+                { k: "cheapest", label: "💸 Econ.", labelSm: "Económicas", icon: Ticket }
+              ] as Array<{ k: SortKey; label: string; labelSm: string; icon: typeof TrendingUp }>
+            ).map(({ k, label, labelSm, icon: Icon }) => (
               <Button
                 key={k}
                 size="sm"
                 variant={sort === k ? "default" : "outline"}
                 className={cn(
-                  "h-8 rounded-xl",
+                  "h-7 sm:h-8 rounded-xl text-[11px] sm:text-xs px-2 sm:px-3 shrink-0",
                   sort === k
                     ? "bg-gradient-cta shadow-cta border-0 text-white"
                     : "text-slate-700"
                 )}
                 onClick={() => syncURL({ sort: k })}
               >
-                <Icon className="h-3.5 w-3.5 mr-1.5" />
-                {label}
+                <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1 sm:mr-1.5" />
+                <span className="sm:hidden">{label}</span>
+                <span className="hidden sm:inline">{labelSm}</span>
               </Button>
             ))}
             {hasActiveFilters && (
@@ -318,22 +320,23 @@ export default function RifaListFiltersClient(props: Props) {
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="h-8 rounded-xl text-slate-500 hover:text-brand-rose"
+                className="h-7 sm:h-8 rounded-xl text-[11px] sm:text-xs text-slate-500 hover:text-brand-rose px-2 sm:px-3 shrink-0"
                 onClick={clearAll}
               >
-                <X className="h-3.5 w-3.5 mr-1" />
-                Limpiar filtros
+                <X className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />
+                <span className="sm:hidden">Limpiar</span>
+                <span className="hidden sm:inline">Limpiar filtros</span>
               </Button>
             )}
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200/80 bg-white/80 backdrop-blur px-5 py-3.5 shadow-sm">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+        <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-4 rounded-2xl border border-slate-200/80 bg-white/80 backdrop-blur px-3 sm:px-5 py-2.5 sm:py-3.5 shadow-sm">
+          <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 shrink-0">
             Precio número
           </div>
-          <div className="flex flex-1 items-center gap-3 min-w-[260px]">
-            <div className="flex-1">
+          <div className="flex flex-1 items-center gap-2 sm:gap-3 min-w-0">
+            <div className="flex-1 min-w-0">
               <input
                 type="range"
                 min={0}
@@ -348,7 +351,7 @@ export default function RifaListFiltersClient(props: Props) {
                 className="w-full accent-brand-rose cursor-pointer"
               />
             </div>
-            <div className="text-sm font-display font-extrabold text-slate-900 min-w-[110px] text-right">
+            <div className="text-xs sm:text-sm font-display font-extrabold text-slate-900 min-w-[90px] sm:min-w-[110px] text-right shrink-0">
               Hasta {formatCurrency(maxPrice)}
             </div>
           </div>

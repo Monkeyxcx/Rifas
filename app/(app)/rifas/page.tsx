@@ -1,8 +1,8 @@
-import { Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 import RifaListFiltersClient from "@/components/rifas/RifaListFiltersClient";
+import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import type { Rifa, RifaStats } from "@/lib/types";
+import { Suspense } from "react";
 
 export const revalidate = 30;
 export const dynamic = "force-dynamic";
@@ -53,14 +53,14 @@ async function getActiveRifas(): Promise<Array<{ rifa: Rifa; stats: RifaStats }>
 
 function RifasListFallback() {
   return (
-    <div className="container max-w-content py-10 md:py-14 space-y-8">
-      <Skeleton className="h-10 w-80" />
-      <Skeleton className="h-12 w-full max-w-3xl rounded-2xl" />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-7 pt-6">
+    <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 py-10 md:py-14 space-y-6 sm:space-y-8 overflow-hidden">
+      <Skeleton className="h-8 sm:h-10 w-64 sm:w-80 rounded-lg sm:rounded-xl" />
+      <Skeleton className="h-11 sm:h-12 w-full max-w-3xl rounded-2xl" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-7 pt-4 sm:pt-6">
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton
             key={i}
-            className="aspect-[4/5] rounded-3xl bg-slate-100"
+            className="aspect-[4/5] rounded-2xl sm:rounded-3xl bg-slate-100"
           />
         ))}
       </div>
