@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +17,14 @@ export async function POST(req: NextRequest, { params }: any) {
       return NextResponse.json({ error: "status invalid" }, { status: 400 });
     }
 
+    const authSb = await createClient();
     const sb = createServiceClient();
-    // Admin check via auth session + profiles.is_admin
+
+    // Auth real del request via cookies; luego usamos service-role para writes
     const {
       data: { user },
       error: uErr
-    } = await sb.auth.getUser();
+    } = await authSb.auth.getUser();
     if (uErr || !user)
       return NextResponse.json({ error: "no auth" }, { status: 401 });
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +17,13 @@ export async function POST(req: NextRequest, { params }: any) {
     return NextResponse.json({ error: "status invalid" }, { status: 400 });
   }
 
+  const authSb = await createClient();
   const sb = createServiceClient();
 
   const {
     data: { user },
     error: uErr
-  } = await sb.auth.getUser();
+  } = await authSb.auth.getUser();
   if (uErr || !user)
     return NextResponse.json({ error: "no auth" }, { status: 401 });
 
@@ -90,24 +91,91 @@ export async function POST(req: NextRequest, { params }: any) {
     review_notes: (body.notes || "").trim().slice(0, 1000) || null,
     reviewed_at: nowIso
   };
-  const { error: upErr } = await (sb.from("nequi_payments") as any)
-    .update(payloadUpdate)
-    .eq("id", id);
-  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
   // Si APPROVED → marcar reservas asociadas como paid + row pago en tabla pagos
   if (body.status === "approved") {
-    const numbersArr: string[] = Array.isArray(voucher.numbers)
-      ? voucher.numbers.filter((n) => typeof n === "string")
+    const reservaIds = Array.isArray(voucher.reserva_ids)
+      ? voucher.reserva_ids.filter((r) => typeof r === "string")
       : [];
-    if (numbersArr.length) {
-      await (sb.from("reservas") as any)
-        .update({ status: "paid" })
-        .eq("user_id", voucher.user_id)
-        .eq("rifa_id", voucher.rifa_id)
-        .in("number", numbersArr)
-        .in("status", ["reserved", "paid"]); // idempotente
+
+    if (!reservaIds.length) {
+      return NextResponse.json(
+        { error: "este comprobante no tiene reservas asociadas" },
+        { status: 409 }
+      );
     }
+
+    const { data: reservaRowsRaw, error: reservasErr } = await (sb
+      .from("reservas") as any)
+      .select("id, rifa_id, user_id, number, status")
+      .in("id", reservaIds);
+    if (reservasErr) {
+      return NextResponse.json({ error: reservasErr.message }, { status: 500 });
+    }
+
+    const reservaRows = (reservaRowsRaw || []) as Array<{
+      id: string;
+      rifa_id: string;
+      user_id: string;
+      number: string;
+      status: string;
+    }>;
+
+    if (reservaRows.length !== reservaIds.length) {
+      return NextResponse.json(
+        { error: "faltan reservas asociadas para aprobar este comprobante" },
+        { status: 409 }
+      );
+    }
+
+    const invalidReserva = reservaRows.find(
+      (r) =>
+        r.user_id !== voucher.user_id ||
+        r.rifa_id !== voucher.rifa_id ||
+        !["reserved", "paid", "expired"].includes(r.status)
+    );
+    if (invalidReserva) {
+      return NextResponse.json(
+        {
+          error:
+            "las reservas asociadas no estan en un estado valido para aprobar este pago"
+        },
+        { status: 409 }
+      );
+    }
+
+    const { data: updatedReservasRaw, error: reservasUpErr } = await (sb
+      .from("reservas") as any)
+      .update({ status: "paid" })
+      .in("id", reservaIds)
+      .in("status", ["reserved", "paid", "expired"])
+      .select("id, number");
+    if (reservasUpErr) {
+      return NextResponse.json({ error: reservasUpErr.message }, { status: 500 });
+    }
+
+    const updatedReservas = (updatedReservasRaw || []) as Array<{
+      id: string;
+      number: string;
+    }>;
+
+    if (updatedReservas.length !== reservaIds.length) {
+      return NextResponse.json(
+        {
+          error:
+            "no fue posible marcar todas las reservas como pagadas; el comprobante no se aprobo"
+        },
+        { status: 409 }
+      );
+    }
+
+    const { error: upErr } = await (sb.from("nequi_payments") as any)
+      .update(payloadUpdate)
+      .eq("id", id);
+    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+
+    const numbersArr = updatedReservas.map((r) => r.number);
+
     // Crear row pagos pago método 'nequi'
     try {
       await (sb.from("pagos") as any).insert({
@@ -141,6 +209,11 @@ export async function POST(req: NextRequest, { params }: any) {
       action_url: `/mis-rifas/participando`
     });
   } else {
+    const { error: upErr } = await (sb.from("nequi_payments") as any)
+      .update(payloadUpdate)
+      .eq("id", id);
+    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+
     // Rejected: notificar
     await (sb.from("notifications") as any).insert({
       user_id: voucher.user_id,

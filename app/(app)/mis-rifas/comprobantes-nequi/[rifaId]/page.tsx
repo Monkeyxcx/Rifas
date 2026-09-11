@@ -79,7 +79,7 @@ export default async function RifaComprobantesPage({ params }: PageProps) {
   const { data: paymentsRows, error: pErr } = await sb
     .from("nequi_payments")
     .select(
-      "id, rifa_id, user_id, reserva_ids, numbers, amount, voucher_image_url, payer_phone, reference, status, review_notes, reviewed_at, reviewed_by, created_at"
+      "id, rifa_id, user_id, reserva_ids, numbers, amount, voucher_image_url, payer_phone, voucher_reference, status, review_notes, reviewed_at, reviewed_by, created_at, updated_at"
     )
     .eq("rifa_id", rifaId)
     .order("created_at", { ascending: false });

@@ -14,7 +14,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { Rifa, RifaStatus } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -279,23 +279,25 @@ export default async function CheckoutPage({
     }
     // default creator approved
     if (acceptNequi || rifa.creator_id) {
-      const { data: verifRows, error: vErr } = await supabase
-        .from("user_nequi_verifications")
-        .select("status, nequi_phone, nequi_qr_url")
+      const adminSb = createServiceClient();
+      const { data: creatorNequiStatus, error: vErr } = await (adminSb
+        .from("user_nequi_status") as any)
+        .select("nequi_verified, nequi_phone, nequi_qr_url")
         .eq("user_id", rifa.creator_id)
-        .order("created_at", { ascending: false })
-        .limit(5);
-      if (!vErr && Array.isArray(verifRows)) {
-        const approved = verifRows.find(
-          (r: any) => r.status === "approved"
-        ) as any;
-        if (approved) {
-          creatorDefaultNequiPhone = approved.nequi_phone ?? null;
-          creatorDefaultNequiQrUrl = approved.nequi_qr_url ?? null;
-        } else {
-          // si no tiene aprobada, no activar Nequi (guardia)
-          acceptNequi = false;
-        }
+        .maybeSingle();
+      const approved = creatorNequiStatus as
+        | {
+            nequi_verified: boolean;
+            nequi_phone: string | null;
+            nequi_qr_url: string | null;
+          }
+        | null;
+      if (!vErr && approved?.nequi_verified) {
+        creatorDefaultNequiPhone = approved.nequi_phone ?? null;
+        creatorDefaultNequiQrUrl = approved.nequi_qr_url ?? null;
+      } else {
+        // si no tiene aprobada, no activar Nequi (guardia)
+        acceptNequi = false;
       }
     }
   } catch (e) {
