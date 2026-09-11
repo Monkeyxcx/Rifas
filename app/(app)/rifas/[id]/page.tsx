@@ -141,18 +141,18 @@ export default async function RifaDetailPage({
   const raised = stats.sold_numbers * stats.number_price;
 
   return (
-    <div className="container max-w-content px-2 sm:px-4 py-4 sm:py-6 md:py-10">
-      <nav className="flex items-center gap-2 text-xs text-slate-500 mb-3 sm:mb-5">
+    <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 py-4 sm:py-6 md:py-10 overflow-hidden">
+      <nav className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs text-slate-500 mb-3 sm:mb-5 min-w-0">
         <Link href="/rifas" className="hover:text-brand-rose transition shrink-0">
           Rifas activas
         </Link>
         <span className="text-slate-300 shrink-0">/</span>
-        <span className="text-slate-800 font-medium truncate min-w-0">
+        <span className="text-slate-800 font-medium truncate min-w-0 flex-1">
           {rifa.title}
         </span>
       </nav>
 
-      <div className="space-y-5 sm:space-y-6 max-w-5xl mx-auto">
+      <div className="space-y-4 sm:space-y-6 w-full">
         <div>
           <div
             className={cn(

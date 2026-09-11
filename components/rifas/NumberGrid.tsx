@@ -142,7 +142,7 @@ export default function NumberGrid({
         </div>
       </div>
 
-      <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-1 sm:gap-1.5 md:gap-2 text-center font-numbers tabular-nums">
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5 md:gap-2 text-center font-numbers tabular-nums">
         {allNumbers.map((n) => {
           const st = stateOf(n);
           const disabled = st === "sold" || st === "mine";
@@ -162,7 +162,7 @@ export default function NumberGrid({
                       : `Seleccionar número ${n}`
               }
               className={cn(
-                "relative aspect-square w-full rounded-md sm:rounded-lg text-[13px] sm:text-sm font-semibold transition-all duration-150 select-none",
+                "relative aspect-square w-full rounded-md sm:rounded-lg text-xs sm:text-sm font-semibold transition-all duration-150 select-none p-0.5 sm:p-1",
                 st === "available" &&
                   "bg-white border border-slate-200 text-slate-700 hover:-translate-y-[1px] hover:border-brand-rose hover:text-brand-rose hover:shadow-[0_6px_18px_-10px_rgba(255,27,81,0.35)] active:scale-[0.96]",
                 st === "selected" &&

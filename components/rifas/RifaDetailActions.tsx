@@ -273,9 +273,9 @@ export default function RifaDetailActions(props: Props) {
   );
 
   return (
-    <div className="grid gap-8 lg:grid-cols-5 w-full">
-      <div className="lg:col-span-3">{numberGrid}</div>
-      <div className="lg:col-span-2">{paymentAside}</div>
+    <div className="grid gap-4 sm:gap-6 lg:gap-8 lg:grid-cols-5 w-full overflow-hidden">
+      <div className="lg:col-span-3 min-w-0 w-full">{numberGrid}</div>
+      <div className="lg:col-span-2 min-w-0 w-full">{paymentAside}</div>
     </div>
   );
 }
