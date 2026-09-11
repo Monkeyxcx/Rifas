@@ -13,6 +13,7 @@ import {
   CircleDollarSign,
   Eye,
   Plus,
+  ReceiptText,
   Search,
   Settings2,
   Share2,
@@ -373,6 +374,18 @@ export default async function MisRifasCreadasPage() {
                     <Share2 className="mr-1 h-3.5 w-3.5" />
                     <span className="sm:hidden">Compartir</span>
                     <span className="hidden sm:inline">Compartir</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="!bg-white !h-9 !border-emerald-300 !text-emerald-700 shadow"
+                    asChild
+                  >
+                    <Link href={`/mis-rifas/comprobantes-nequi/${rifa.id}`}>
+                      <ReceiptText className="mr-1 h-3.5 w-3.5" />
+                      <span className="sm:hidden">Comprobantes</span>
+                      <span className="hidden sm:inline">Comprobantes Nequi</span>
+                    </Link>
                   </Button>
                 </div>
                 {status === "closed" && (

@@ -21,8 +21,11 @@ import {
   Gift,
   Sparkles,
   Plus,
-  Settings2
+  Settings2,
+  Phone as PhoneIcon
 } from "lucide-react";
+import NequiVerificationForm from "@/components/nequi/NequiVerificationForm";
+import type { UserNequiVerification } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +48,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { id: "datos", label: "Datos personales", icon: Settings2, active: true },
+  { id: "verificacion-nequi", label: "Pago por Nequi", icon: PhoneIcon },
   { id: "seguridad", label: "Seguridad y acceso", icon: KeyRound },
   { id: "notificaciones", label: "Notificaciones", icon: Bell },
   { id: "facturacion", label: "Facturación y pagos", icon: CreditCard },
@@ -61,6 +65,7 @@ async function getCurrentPerfil(): Promise<{
     invertido: number;
     ganados: number;
   };
+  latestNequiVerification: UserNequiVerification | null;
 } | null> {
   try {
     const supabase = await createClient();
@@ -146,11 +151,25 @@ async function getCurrentPerfil(): Promise<{
       invertido,
       ganados: 0
     };
+
+    // latest solicitud verificación Nequi
+    let latestNequiVerification: UserNequiVerification | null = null;
+    const { data: nequiRows, error: nequiErr } = await supabase
+      .from("user_nequi_verifications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (!nequiErr && nequiRows && nequiRows.length) {
+      latestNequiVerification = nequiRows[0] as unknown as UserNequiVerification;
+    }
+
     return {
       user: { id: user.id, email: user.email ?? "usuario@rifascenter.com" },
       perfil,
       statsCreador,
-      statsParticipante
+      statsParticipante,
+      latestNequiVerification
     };
   } catch (e) {
     console.error("[perfil page] load failed", e);
@@ -161,7 +180,13 @@ async function getCurrentPerfil(): Promise<{
 export default async function PerfilPage() {
   const loaded = await getCurrentPerfil();
   if (!loaded) redirect("/auth?redirectTo=%2Fperfil");
-  const { user, perfil, statsCreador, statsParticipante } = loaded;
+  const {
+    user,
+    perfil,
+    statsCreador,
+    statsParticipante,
+    latestNequiVerification
+  } = loaded;
 
   const displayName = perfil.display_name ?? perfil.full_name ?? user.email.split("@")[0] ?? "Usuario";
   const fullName = perfil.full_name ?? displayName;
@@ -350,6 +375,13 @@ export default async function PerfilPage() {
                     <Plus className="mr-2 h-4 w-4 text-brand-rose" /> Crear rifa nueva
                   </Link>
                 </Button>
+                {perfil.is_admin ? (
+                  <Button asChild variant="outline" className="!h-10 justify-start !border-amber-200 !text-amber-700 !bg-amber-50/50 font-bold">
+                    <Link href="/admin/verificaciones-nequi">
+                      <ShieldCheck className="mr-2 h-4 w-4" /> Panel admin · Solicitudes Nequi
+                    </Link>
+                  </Button>
+                ) : null}
                 <Separator className="my-1" />
                 <ProfileSignOutButton />
               </CardContent>
@@ -391,10 +423,18 @@ export default async function PerfilPage() {
             </Card>
           </aside>
 
-          {/* MAIN CONTENT · 5 SECTIONS */}
+          {/* MAIN CONTENT · SECTIONS */}
           <section className="space-y-6">
             {/* 1 · DATOS PERSONALES */}
             <ProfileSaveForm perfil={perfil} email={user.email} />
+
+            {/* 1.5 · VERIFICACIÓN NEQUI */}
+            <div id="verificacion-nequi" className="scroll-mt-24">
+              <NequiVerificationForm
+                userId={user.id}
+                latest={latestNequiVerification}
+              />
+            </div>
 
             {/* 2 · SEGURIDAD */}
             <Card id="seguridad" className="border-slate-200 shadow-sm scroll-mt-24">

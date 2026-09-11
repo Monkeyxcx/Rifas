@@ -1,6 +1,7 @@
 import CheckoutPaymentButton from "@/components/checkout/CheckoutPaymentButton";
 import CountdownTimer from "@/components/checkout/CountdownTimer";
 import MPPaymentWatcherOverlay from "@/components/checkout/MPPaymentWatcherOverlay";
+import NequiCheckoutPane from "@/components/nequi/NequiCheckoutPane";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createClient } from "@/lib/supabase/server";
 import type { Rifa, RifaStatus } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
@@ -23,6 +25,7 @@ import {
   FileCheck2,
   HeartHandshake,
   MapPin,
+  QrCode,
   ShieldCheck,
   Smartphone,
   Sparkles,
@@ -251,6 +254,70 @@ export default async function CheckoutPage({
 
   const country = rifa.creator?.country ?? "Colombia";
   const currency = currencyMap[country] ?? "COP";
+
+  // PAYMENT METHODS · Mercado Pago / Nequi
+  let acceptMercadoPago = true;
+  let acceptNequi = false;
+  let nequiOverridePhone: string | null = null;
+  let nequiOverrideQrUrl: string | null = null;
+  let creatorDefaultNequiPhone: string | null = null;
+  let creatorDefaultNequiQrUrl: string | null = null;
+
+  try {
+    const { data: methods } = await supabase
+      .from("rifa_payment_methods")
+      .select(
+        "accept_mercado_pago, accept_nequi, nequi_phone_override, nequi_qr_override_url"
+      )
+      .eq("rifa_id", rifa.id)
+      .maybeSingle();
+    if (methods) {
+      acceptMercadoPago = Boolean((methods as any).accept_mercado_pago);
+      acceptNequi = Boolean((methods as any).accept_nequi);
+      nequiOverridePhone = (methods as any).nequi_phone_override ?? null;
+      nequiOverrideQrUrl = (methods as any).nequi_qr_override_url ?? null;
+    }
+    // default creator approved
+    if (acceptNequi || rifa.creator_id) {
+      const { data: verifRows, error: vErr } = await supabase
+        .from("user_nequi_verifications")
+        .select("status, nequi_phone, nequi_qr_url")
+        .eq("user_id", rifa.creator_id)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (!vErr && Array.isArray(verifRows)) {
+        const approved = verifRows.find(
+          (r: any) => r.status === "approved"
+        ) as any;
+        if (approved) {
+          creatorDefaultNequiPhone = approved.nequi_phone ?? null;
+          creatorDefaultNequiQrUrl = approved.nequi_qr_url ?? null;
+        } else {
+          // si no tiene aprobada, no activar Nequi (guardia)
+          acceptNequi = false;
+        }
+      }
+    }
+  } catch (e) {
+    acceptNequi = false;
+    acceptMercadoPago = true;
+  }
+
+  // merge overrides (rifa-specific tiene prioridad sobre default creator)
+  const nequiPhoneFinal =
+    (nequiOverridePhone ? nequiOverridePhone.trim() : "") ||
+    creatorDefaultNequiPhone ||
+    "";
+  const nequiQrFinal =
+    (nequiOverrideQrUrl ? nequiOverrideQrUrl.trim() : "") ||
+    creatorDefaultNequiQrUrl ||
+    "";
+  const defaultTab =
+    acceptMercadoPago && !acceptNequi
+      ? "mp"
+      : acceptNequi && !acceptMercadoPago
+        ? "nequi"
+        : "mp";
 
   const expiresAt = minExpireIso ?? new Date(Date.now() + 15 * 60 * 1000).toISOString();
   const endsDate = rifa.ends_at ? new Date(rifa.ends_at) : null;
@@ -625,32 +692,76 @@ export default async function CheckoutPage({
                     </div>
                   </div>
 
-                  <CheckoutPaymentButton
-                    reservaId={reservaId}
-                    rifaId={rifa.id}
-                    numbers={numbersArr}
-                    total={total}
-                    currency={currency}
-                    payerEmail={payerEmail}
-                    payerName={payerName}
-                    payerPhone={payerPhone}
-                  />
+                  <Tabs
+                    defaultValue={defaultTab}
+                    className="w-full"
+                  >
+                    <TabsList className="grid w-full grid-cols-2 mb-3">
+                      <TabsTrigger
+                        value="mp"
+                        disabled={!acceptMercadoPago}
+                        className="text-[11px] sm:text-xs"
+                      >
+                        <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+                        Mercado Pago
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="nequi"
+                        disabled={!acceptNequi || !nequiPhoneFinal}
+                        className="text-[11px] sm:text-xs"
+                      >
+                        <QrCode className="mr-1.5 h-3.5 w-3.5" />
+                        Pagar con Nequi
+                      </TabsTrigger>
+                    </TabsList>
 
-                  <MPPaymentWatcherOverlay
-                    reservaId={reservaId}
-                    rifaId={rifa.id}
-                    initialStatus={(reservas[0]?.status as "reserved") ?? "reserved"}
-                    numbers={numbersArr}
-                    unitPrice={unitPrice}
-                    totalAmount={total}
-                    currency={currency}
-                  />
+                    <TabsContent value="mp" className="space-y-3">
+                      {!acceptMercadoPago ? (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                          Mercado Pago no está disponible para esta rifa. Usa Pagar con Nequi.
+                        </div>
+                      ) : null}
+                      <CheckoutPaymentButton
+                        reservaId={reservaId}
+                        rifaId={rifa.id}
+                        numbers={numbersArr}
+                        total={total}
+                        currency={currency}
+                        payerEmail={payerEmail}
+                        payerName={payerName}
+                        payerPhone={payerPhone}
+                      />
+                      <MPPaymentWatcherOverlay
+                        reservaId={reservaId}
+                        rifaId={rifa.id}
+                        initialStatus={(reservas[0]?.status as "reserved") ?? "reserved"}
+                        numbers={numbersArr}
+                        unitPrice={unitPrice}
+                        totalAmount={total}
+                        currency={currency}
+                      />
+                      {isDemo && (
+                        <div className="rounded-lg sm:rounded-xl border border-dashed border-brand-gold/60 bg-amber-50/70 px-2.5 sm:px-3 py-1.5 sm:py-2 text-center text-[9px] sm:text-[10px] sm:text-[11px] font-bold text-amber-700 leading-snug w-full min-w-0">
+                          🧪 MODO DEMO · Sandbox · Sin cargos reales
+                        </div>
+                      )}
+                    </TabsContent>
 
-                  {isDemo && (
-                    <div className="rounded-lg sm:rounded-xl border border-dashed border-brand-gold/60 bg-amber-50/70 px-2.5 sm:px-3 py-1.5 sm:py-2 text-center text-[9px] sm:text-[10px] sm:text-[11px] font-bold text-amber-700 leading-snug w-full min-w-0">
-                      🧪 MODO DEMO · Sandbox · Sin cargos reales
-                    </div>
-                  )}
+                    <TabsContent value="nequi" className="mt-0">
+                      <NequiCheckoutPane
+                        reservaIds={reservas.map((r) => r.id)}
+                        numbers={numbersArr}
+                        rifaId={rifa.id}
+                        rifaTitle={rifa.title}
+                        creatorName={rifa.creator?.full_name ?? "Creador"}
+                        creatorNequiPhone={nequiPhoneFinal || null}
+                        creatorNequiQrUrl={nequiQrFinal || null}
+                        unitPrice={unitPrice}
+                        amount={total}
+                        participantUserId={user.id}
+                      />
+                    </TabsContent>
+                  </Tabs>
                 </CardContent>
 
                 <CardFooter className="grid gap-2 border-t border-slate-100 bg-slate-50/80 px-3 sm:px-4 sm:px-6 py-2.5 sm:py-3 sm:py-4 text-[10px] sm:text-[10px] sm:text-[11px] font-semibold text-slate-500 w-full min-w-0">
