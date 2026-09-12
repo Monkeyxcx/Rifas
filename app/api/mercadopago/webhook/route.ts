@@ -3,6 +3,7 @@ import {
   mpPayment,
   verifyWebhookSignature
 } from "@/lib/mercadopago";
+import { evaluateWebhookSecurity } from "./security";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { PagoStatus, ReservaStatus } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
@@ -101,7 +102,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (hasMercadoPagoCredentials() && process.env.MERCADO_PAGO_WEBHOOK_SECRET && !hasMockInline) {
+  const webhookSecurity = evaluateWebhookSecurity({
+    hasCredentials: hasMercadoPagoCredentials(),
+    hasWebhookSecret:
+      !!process.env.MERCADO_PAGO_WEBHOOK_SECRET &&
+      !process.env.MERCADO_PAGO_WEBHOOK_SECRET.includes("PLACEHOLDER"),
+    hasMockInline
+  });
+
+  if (webhookSecurity.mode === "verify_signature") {
     try {
       const signatureOk = await verifyWebhookSignature(req, rawBody);
       if (!signatureOk) {
@@ -120,7 +129,15 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
-  } else if (!hasMockInline) {
+  } else if (webhookSecurity.mode === "reject_missing_secret") {
+    console.error(
+      "[mercadopago/webhook] MERCADO_PAGO_WEBHOOK_SECRET faltante con credenciales MP activas — rechazando request para evitar procesar webhooks sin firma."
+    );
+    return NextResponse.json(
+      { ok: false, error: "Webhook secret not configured" },
+      { status: 500 }
+    );
+  } else if (webhookSecurity.mode === "skip_signature_in_mock_mode") {
     console.warn(
       "[mercadopago/webhook] credenciales MP / webhook secret sin setear — aceptando request sin validar (dev mode)."
     );

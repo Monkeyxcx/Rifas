@@ -181,11 +181,11 @@ export async function verifyWebhookSignature(
   rawBody: string
 ): Promise<boolean> {
   const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
-  if (!secret) {
+  if (!secret || secret.includes("PLACEHOLDER")) {
     console.warn(
-      "[mercadopago] MERCADO_PAGO_WEBHOOK_SECRET no seteado — webhook sin validar."
+      "[mercadopago] MERCADO_PAGO_WEBHOOK_SECRET no seteado — rechazando webhook sin validar."
     );
-    return true;
+    return false;
   }
 
   // Mercado Pago x-signature header validation
