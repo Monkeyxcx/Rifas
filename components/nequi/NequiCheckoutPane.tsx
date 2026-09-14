@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
+  Building2,
   Phone,
   QrCode,
   Upload,
@@ -25,6 +25,11 @@ import {
   ShieldCheck,
   FileImage
 } from "lucide-react";
+import type { ManualPaymentMethodType } from "@/lib/types";
+import {
+  getManualPaymentLabel,
+  getManualPaymentShortDescription
+} from "@/lib/manual-payments";
 
 type Props = {
   rifaId: string;
@@ -33,9 +38,11 @@ type Props = {
   reservaIds: string[];
   amount: number;
   unitPrice: number;
-  // Datos del creador (de la rifa o verificación aprobada)
-  creatorNequiPhone: string | null;
-  creatorNequiQrUrl: string | null;
+  paymentMethodType: ManualPaymentMethodType;
+  creatorPaymentPhone: string | null;
+  creatorPaymentQrUrl: string | null;
+  creatorPaymentAccountLabel: string | null;
+  creatorAccountHolderName: string | null;
   creatorName: string | null;
   participantUserId: string;
 };
@@ -48,8 +55,11 @@ export default function NequiCheckoutPane(props: Props) {
     reservaIds,
     amount,
     unitPrice,
-    creatorNequiPhone,
-    creatorNequiQrUrl,
+    paymentMethodType,
+    creatorPaymentPhone,
+    creatorPaymentQrUrl,
+    creatorPaymentAccountLabel,
+    creatorAccountHolderName,
     creatorName,
     participantUserId
   } = props;
@@ -69,7 +79,7 @@ export default function NequiCheckoutPane(props: Props) {
     try {
       setLoading(true);
       const ext = f.name.split(".").pop()?.toLowerCase().slice(0, 5) || "jpg";
-      const path = `nequi-vouchers/${rifaId}/${participantUserId}-${Date.now()}.${ext}`;
+      const path = `manual-vouchers/${rifaId}/${participantUserId}-${Date.now()}.${ext}`;
       const { error } = await supabase.storage
         .from("rifas-media")
         .upload(path, f, { cacheControl: "3600", upsert: true });
@@ -96,6 +106,7 @@ export default function NequiCheckoutPane(props: Props) {
         rifa_id: rifaId,
         user_id: participantUserId,
         reserva_ids: reservaIds,
+        payment_method_type: paymentMethodType,
         numbers,
         amount: Number(amount.toFixed(2)),
         voucher_image_url: voucherUrl,
@@ -127,6 +138,15 @@ export default function NequiCheckoutPane(props: Props) {
     }
   }
 
+  const methodLabel = getManualPaymentLabel(paymentMethodType);
+  const methodDescription = getManualPaymentShortDescription(paymentMethodType);
+  const showPhone = paymentMethodType === "nequi";
+  const showQr =
+    paymentMethodType === "nequi" || paymentMethodType === "bancolombia_qr";
+  const showAccountLabel =
+    paymentMethodType === "bancolombia_qr" ||
+    paymentMethodType === "bancolombia_transfer";
+
   return (
     <div className="space-y-5">
       <Card className="border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-slate-50 shadow-sm">
@@ -134,18 +154,21 @@ export default function NequiCheckoutPane(props: Props) {
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex items-start gap-3">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-500 text-white">
-                <Phone className="h-5 w-5" />
+                {paymentMethodType === "nequi" ? (
+                  <Phone className="h-5 w-5" />
+                ) : (
+                  <Building2 className="h-5 w-5" />
+                )}
               </div>
               <div>
                 <CardTitle className="font-display text-lg flex items-center gap-2">
-                  Pago directo por Nequi
+                  {methodLabel}
                   <Badge className="!bg-emerald-500 !text-white !border-0 text-[10px]">
                     <ShieldCheck className="mr-1 h-3 w-3" /> Validación manual
                   </Badge>
                 </CardTitle>
                 <CardDescription className="text-sm">
-                  Escanea el QR o envía al número del creador y pega el comprobante de la
-                  transferencia.
+                  {methodDescription}
                 </CardDescription>
               </div>
             </div>
@@ -185,35 +208,70 @@ export default function NequiCheckoutPane(props: Props) {
                   Datos del creador {creatorName ? `· ${creatorName}` : ""}
                 </div>
 
-                <div className="space-y-1">
-                  <div className="text-xs font-semibold text-slate-600">
-                    Número Nequi
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="text-lg font-black text-slate-900 tabular-nums">
-                      {creatorNequiPhone ?? "—"}
+                {creatorAccountHolderName ? (
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-slate-600">
+                      Titular
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8"
-                      onClick={() => copy(creatorNequiPhone ?? "")}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copiar
-                    </Button>
+                    <div className="text-sm font-bold text-slate-900">
+                      {creatorAccountHolderName}
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
-                {creatorNequiQrUrl ? (
+                {showPhone ? (
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-slate-600">
+                      Número Nequi
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="text-lg font-black text-slate-900 tabular-nums">
+                        {creatorPaymentPhone ?? "—"}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={() => copy(creatorPaymentPhone ?? "")}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copiar
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {showAccountLabel ? (
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-slate-600">
+                      Cuenta o referencia Bancolombia
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="text-sm font-bold text-slate-900">
+                        {creatorPaymentAccountLabel ?? "—"}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={() => copy(creatorPaymentAccountLabel ?? "")}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copiar
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {showQr && creatorPaymentQrUrl ? (
                   <div className="space-y-1.5">
                     <div className="text-xs font-semibold text-slate-600 flex items-center gap-1">
                       <QrCode className="h-3.5 w-3.5" /> Escanea el QR
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-white p-2 inline-block">
                       <img
-                        src={creatorNequiQrUrl}
-                        alt="QR Nequi"
+                        src={creatorPaymentQrUrl}
+                        alt={`QR ${methodLabel}`}
                         className="h-40 w-40 object-contain"
                       />
                     </div>
@@ -268,7 +326,7 @@ export default function NequiCheckoutPane(props: Props) {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="ref" className="text-xs font-bold">
-                      Referencia / código Nequi
+                      Referencia del pago
                     </Label>
                     <Input
                       id="ref"
@@ -295,9 +353,9 @@ export default function NequiCheckoutPane(props: Props) {
 
                 <div className="rounded-lg border border-dashed border-cyan-200 bg-cyan-50/50 p-3 text-[11px] text-cyan-800">
                   <Info className="mr-1 inline h-3.5 w-3.5 -translate-y-0.5" />
-                  Tu reserva sigue reservada por 15 minutos mientras te llega la
-                  aprobación. Si el creador no lo aprueba a tiempo, podrás volver a
-                  intentarlo.
+                  El dinero lo recibe directamente el creador. Tu reserva sigue apartada
+                  por 15 minutos mientras llega la aprobación manual. Si el creador no lo
+                  aprueba a tiempo, podrás volver a intentarlo.
                 </div>
 
                 <Button

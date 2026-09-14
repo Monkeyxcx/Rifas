@@ -15,6 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import { showSuccess, showError, showWarning } from "@/lib/ui/modals";
 
 import { cn, formatCurrency, generateRaffleNumbers, padRaffleNumber } from "@/lib/utils";
+import { calculateCreatorFeeAmount, CREATOR_FEE_THRESHOLD } from "@/lib/creator-fees";
 import type { Rifa } from "@/lib/types";
 
 type StepKey = "datos" | "premio" | "numeros" | "fechas";
@@ -192,7 +193,14 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
         country: form.country
       }
     };
-    return { mock, gross, numbers, total, soldSample };
+    return {
+      mock,
+      gross,
+      creatorFee: calculateCreatorFeeAmount(total, form.number_price),
+      numbers,
+      total,
+      soldSample
+    };
   }, [form, editingId]);
 
   function update<K extends keyof CreatorFormState>(key: K, value: CreatorFormState[K]) {
@@ -741,6 +749,23 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                       </div>
                     </CardContent>
                   </Card>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="text-sm font-bold text-amber-900">
+                    Comisión para el creador: clara desde ahora
+                  </div>
+                  <div className="mt-2 text-sm text-amber-900/90 leading-relaxed">
+                    Al participante no se le cobrará recargo extra. Cuando esta rifa
+                    llegue a <b>{CREATOR_FEE_THRESHOLD} boletas vendidas y pagadas</b>,
+                    tú como creador deberás pagar una comisión de{" "}
+                    <b>{formatCurrency(projected.creatorFee)}</b> por Mercado Pago.
+                  </div>
+                  <div className="mt-2 text-xs text-amber-800">
+                    Esa comisión equivale al 3% del valor total proyectado de la rifa:{" "}
+                    <b>{formatCurrency(projected.gross)}</b>. Si no se paga, la rifa se
+                    pausará temporalmente hasta quedar al día.
+                  </div>
                 </div>
 
                 <div>

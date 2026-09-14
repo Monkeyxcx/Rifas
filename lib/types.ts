@@ -29,6 +29,12 @@ export type PagoStatus =
   | "refunded"
   | "in_process";
 
+export type CreatorFeeChargeStatus = "pending" | "approved" | "cancelled";
+export type ManualPaymentMethodType =
+  | "nequi"
+  | "bancolombia_qr"
+  | "bancolombia_transfer";
+
 export interface Perfil {
   id: ID;
   display_name: string | null;
@@ -50,11 +56,14 @@ export interface UserNequiVerification {
   id: ID;
   user_id: ID;
   nequi_phone: string;
+  account_holder_name: string | null;
   document_type: string;
   document_number: string;
   document_image_url: string;
   nequi_certificate_url: string;
   nequi_qr_url: string | null;
+  bancolombia_qr_url: string | null;
+  bancolombia_account_label: string | null;
   status: NequiVerificationStatus;
   review_admin_id: ID | null;
   review_notes: string | null;
@@ -69,8 +78,30 @@ export interface RifaPaymentMethods {
   rifa_id: ID;
   accept_mercado_pago: boolean;
   accept_nequi: boolean;
+  accept_bancolombia_qr: boolean;
+  accept_bancolombia_transfer: boolean;
   nequi_phone_override: string | null;
   nequi_qr_override_url: string | null;
+  bancolombia_qr_override_url: string | null;
+  bancolombia_account_override: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatorFeeCharge {
+  rifa_id: ID;
+  creator_id: ID;
+  trigger_ticket_count: number;
+  fee_percentage: number;
+  fee_base_amount: number;
+  fee_amount: number;
+  paid_tickets_count: number;
+  status: CreatorFeeChargeStatus;
+  mercado_pago_payment_id: string | null;
+  mercado_pago_preference_id: string | null;
+  external_reference: string | null;
+  threshold_reached_at: string | null;
+  paid_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -81,6 +112,7 @@ export interface NequiPayment {
   id: ID;
   rifa_id: ID;
   user_id: ID;
+  payment_method_type: ManualPaymentMethodType;
   reserva_ids: ID[];
   numbers: string[];
   amount: number;

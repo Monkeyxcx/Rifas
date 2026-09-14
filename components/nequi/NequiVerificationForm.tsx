@@ -22,6 +22,7 @@ import {
   IdCard,
   FileText,
   QrCode,
+  Building2,
   CheckCircle2,
   Clock,
   XCircle,
@@ -74,11 +75,20 @@ export default function NequiVerificationForm({ userId, latest }: Props) {
   const [msg, setMsg] = useState<string>("");
 
   const [nequiPhone, setNequiPhone] = useState(latest?.nequi_phone ?? "");
+  const [accountHolderName, setAccountHolderName] = useState(
+    latest?.account_holder_name ?? ""
+  );
   const [documentType, setDocumentType] = useState(latest?.document_type ?? "CC");
   const [documentNumber, setDocumentNumber] = useState(latest?.document_number ?? "");
   const [docUrl, setDocUrl] = useState(latest?.document_image_url ?? "");
   const [certUrl, setCertUrl] = useState(latest?.nequi_certificate_url ?? "");
   const [qrUrl, setQrUrl] = useState(latest?.nequi_qr_url ?? "");
+  const [bancolombiaQrUrl, setBancolombiaQrUrl] = useState(
+    latest?.bancolombia_qr_url ?? ""
+  );
+  const [bancolombiaAccountLabel, setBancolombiaAccountLabel] = useState(
+    latest?.bancolombia_account_label ?? ""
+  );
 
   const locked = latest?.status === "approved" || latest?.status === "pending";
 
@@ -121,8 +131,20 @@ export default function NequiVerificationForm({ userId, latest }: Props) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (locked) return;
-    if (!nequiPhone.trim() || !documentNumber.trim() || !docUrl || !certUrl) {
-      setMsg("Faltan datos requeridos (teléfono, documento, foto doc, certificado).");
+    const hasNequiData = Boolean(nequiPhone.trim() || qrUrl.trim());
+    const hasBancolombiaData = Boolean(
+      bancolombiaQrUrl.trim() || bancolombiaAccountLabel.trim()
+    );
+    if (
+      !accountHolderName.trim() ||
+      !documentNumber.trim() ||
+      !docUrl ||
+      !certUrl ||
+      (!hasNequiData && !hasBancolombiaData)
+    ) {
+      setMsg(
+        "Debes completar titular, documento, foto del documento, soporte bancario y al menos un método de cobro manual."
+      );
       return;
     }
     try {
@@ -131,11 +153,14 @@ export default function NequiVerificationForm({ userId, latest }: Props) {
       const payload = {
         user_id: userId,
         nequi_phone: nequiPhone.trim().slice(0, 15),
+        account_holder_name: accountHolderName.trim().slice(0, 120),
         document_type: documentType.trim().slice(0, 10),
         document_number: documentNumber.trim().slice(0, 30),
         document_image_url: docUrl,
         nequi_certificate_url: certUrl,
         nequi_qr_url: qrUrl || null,
+        bancolombia_qr_url: bancolombiaQrUrl || null,
+        bancolombia_account_label: bancolombiaAccountLabel.trim().slice(0, 160) || null,
         status: "pending"
       };
       const { error } = await (supabase
@@ -162,11 +187,12 @@ export default function NequiVerificationForm({ userId, latest }: Props) {
               </div>
               <div>
                 <CardTitle className="font-display text-lg">
-                  Verificación Nequi · Creadores
+                  Cobros manuales del creador
                 </CardTitle>
                 <CardDescription className="text-sm">
-                  Para cobrar tus rifas por Nequi sube tus datos. Un administrador los valida
-                  antes de que tus rifas acepten este medio de pago.
+                  Configura Nequi o Bancolombia para recibir pagos directos de tus
+                  participantes. Un administrador valida tu identidad y tus soportes antes
+                  de habilitar estos cobros en tus rifas.
                 </CardDescription>
               </div>
             </div>
@@ -183,7 +209,17 @@ export default function NequiVerificationForm({ userId, latest }: Props) {
           <form className="space-y-4" onSubmit={submit}>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="nequi-phone">Número Nequi *</Label>
+                <Label htmlFor="account-holder">Titular de la cuenta *</Label>
+                <Input
+                  id="account-holder"
+                  placeholder="Ej: Juan Perez"
+                  value={accountHolderName}
+                  disabled={locked}
+                  onChange={(e) => setAccountHolderName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nequi-phone">Número Nequi (opcional)</Label>
                 <Input
                   id="nequi-phone"
                   inputMode="numeric"
@@ -191,6 +227,21 @@ export default function NequiVerificationForm({ userId, latest }: Props) {
                   value={nequiPhone}
                   disabled={locked}
                   onChange={(e) => setNequiPhone(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="bancolombia-account">
+                  Cuenta o alias Bancolombia (opcional)
+                </Label>
+                <Input
+                  id="bancolombia-account"
+                  placeholder="Ej: Ahorros Bancolombia 1234"
+                  value={bancolombiaAccountLabel}
+                  disabled={locked}
+                  onChange={(e) => setBancolombiaAccountLabel(e.target.value)}
                 />
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -235,8 +286,8 @@ export default function NequiVerificationForm({ userId, latest }: Props) {
                 },
                 {
                   id: "cert-img",
-                  label: "Certificado bancario Nequi *",
-                  hint: "Certificado de titularidad descargado desde Nequi",
+                  label: "Certificado o soporte bancario principal *",
+                  hint: "Puede ser certificado Nequi o Bancolombia del titular que recibirá el dinero",
                   icon: FileText,
                   url: certUrl,
                   set: setCertUrl,
@@ -250,6 +301,15 @@ export default function NequiVerificationForm({ userId, latest }: Props) {
                   url: qrUrl,
                   set: setQrUrl,
                   category: "qr-nequi"
+                },
+                {
+                  id: "bco-qr-img",
+                  label: "QR Bancolombia (opcional)",
+                  hint: "Captura QR Bancolombia para pagos directos del participante",
+                  icon: Building2,
+                  url: bancolombiaQrUrl,
+                  set: setBancolombiaQrUrl,
+                  category: "qr-bancolombia"
                 }
               ].map((f) => (
                 <div key={f.id} className="space-y-2">
@@ -288,7 +348,7 @@ export default function NequiVerificationForm({ userId, latest }: Props) {
 
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-xs text-slate-500">
-                ⚠️ Una vez enviada la solicitud no podrás editarla hasta que el admin responda.
+                ⚠️ Una vez enviada la solicitud no podrás editarla hasta que el admin responda. Debes dejar al menos un método manual listo: Nequi o Bancolombia.
               </p>
               <Button
                 type="submit"

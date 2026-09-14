@@ -48,7 +48,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { id: "datos", label: "Datos personales", icon: Settings2, active: true },
-  { id: "verificacion-nequi", label: "Pago por Nequi", icon: PhoneIcon },
+  { id: "cobros-manuales", label: "Cobros manuales", icon: PhoneIcon },
   { id: "seguridad", label: "Seguridad y acceso", icon: KeyRound },
   { id: "notificaciones", label: "Notificaciones", icon: Bell },
   { id: "facturacion", label: "Facturación y pagos", icon: CreditCard },
@@ -152,7 +152,7 @@ async function getCurrentPerfil(): Promise<{
       ganados: 0
     };
 
-    // latest solicitud verificación Nequi
+    // latest solicitud de cobros manuales
     let latestNequiVerification: UserNequiVerification | null = null;
     const { data: nequiRows, error: nequiErr } = await supabase
       .from("user_nequi_verifications")
@@ -378,7 +378,7 @@ export default async function PerfilPage() {
                 {perfil.is_admin ? (
                   <Button asChild variant="outline" className="!h-10 justify-start !border-amber-200 !text-amber-700 !bg-amber-50/50 font-bold">
                     <Link href="/admin/verificaciones-nequi">
-                      <ShieldCheck className="mr-2 h-4 w-4" /> Panel admin · Solicitudes Nequi
+                      <ShieldCheck className="mr-2 h-4 w-4" /> Panel admin · Cobros manuales
                     </Link>
                   </Button>
                 ) : null}
@@ -428,8 +428,8 @@ export default async function PerfilPage() {
             {/* 1 · DATOS PERSONALES */}
             <ProfileSaveForm perfil={perfil} email={user.email} />
 
-            {/* 1.5 · VERIFICACIÓN NEQUI */}
-            <div id="verificacion-nequi" className="scroll-mt-24">
+            {/* 1.5 · COBROS MANUALES */}
+            <div id="cobros-manuales" className="scroll-mt-24">
               <NequiVerificationForm
                 userId={user.id}
                 latest={latestNequiVerification}

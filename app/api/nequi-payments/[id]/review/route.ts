@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { syncCreatorFeeStateForRifa } from "@/lib/creator-fees";
+import {
+  getManualPaymentNotificationLabel
+} from "@/lib/manual-payments";
+import type { ManualPaymentMethodType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +45,7 @@ export async function POST(req: NextRequest, { params }: any) {
   // Cargar voucher con rifa_id creator_id
   const { data: voucherRaw, error: vErr } = await (sb.from("nequi_payments") as any)
     .select(
-      "id, rifa_id, user_id, reserva_ids, numbers, amount, status, voucher_image_url"
+      "id, rifa_id, user_id, payment_method_type, reserva_ids, numbers, amount, status, voucher_image_url"
     )
     .eq("id", id)
     .maybeSingle();
@@ -49,6 +54,7 @@ export async function POST(req: NextRequest, { params }: any) {
         id: string;
         rifa_id: string;
         user_id: string;
+        payment_method_type: ManualPaymentMethodType;
         reserva_ids: string[] | null;
         numbers: string[] | null;
         amount: number | null;
@@ -178,6 +184,7 @@ export async function POST(req: NextRequest, { params }: any) {
 
     // Crear row pagos pago método 'nequi'
     try {
+      const paymentMethodType = voucher.payment_method_type ?? "nequi";
       await (sb.from("pagos") as any).insert({
         rifa_id: voucher.rifa_id,
         user_id: voucher.user_id,
@@ -189,25 +196,34 @@ export async function POST(req: NextRequest, { params }: any) {
         amount: Number(voucher.amount || 0),
         fee_amount: 0,
         net_received_amount: Number(voucher.amount || 0),
-        payment_method: "nequi",
-        payment_type: "nequi_transfer",
+        payment_method:
+          paymentMethodType === "nequi" ? "nequi" : "manual_bank_transfer",
+        payment_type: paymentMethodType,
         installments: 1,
         payer_email: null,
-        mercado_pago_raw: { nequi_payment_id: voucher.id, voucher_image_url: voucher.voucher_image_url },
+        mercado_pago_raw: {
+          manual_payment_id: voucher.id,
+          voucher_image_url: voucher.voucher_image_url,
+          payment_method_type: paymentMethodType
+        },
         paid_at: nowIso
       });
     } catch (_pagoInsertErr) {
       // No fallamos por row en pagos; lo más importante es reservas paid.
     }
     // Notificación participante aprobado
+    const paymentLabel = getManualPaymentNotificationLabel(
+      voucher.payment_method_type ?? "nequi"
+    );
     await (sb.from("notifications") as any).insert({
       user_id: voucher.user_id,
       rifa_id: voucher.rifa_id,
-      type: "nequi_payment_approved",
-      title: "¡Pago Nequi aprobado!",
-      message: `El creador de la rifa validó tu comprobante. Tus números ${numbersArr.slice(0, 10).join(", ")} ya están confirmados como pagados.`,
+      type: "manual_payment_approved",
+      title: "¡Pago manual aprobado!",
+      message: `El creador de la rifa validó tu ${paymentLabel}. Tus números ${numbersArr.slice(0, 10).join(", ")} ya están confirmados como pagados.`,
       action_url: `/mis-rifas/participando`
     });
+    await syncCreatorFeeStateForRifa(sb, voucher.rifa_id).catch(() => null);
   } else {
     const { error: upErr } = await (sb.from("nequi_payments") as any)
       .update(payloadUpdate)
@@ -215,12 +231,15 @@ export async function POST(req: NextRequest, { params }: any) {
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
     // Rejected: notificar
+    const paymentLabel = getManualPaymentNotificationLabel(
+      voucher.payment_method_type ?? "nequi"
+    );
     await (sb.from("notifications") as any).insert({
       user_id: voucher.user_id,
       rifa_id: voucher.rifa_id,
-      type: "nequi_payment_rejected",
-      title: "Tu comprobante Nequi no fue validado",
-      message: `El creador no pudo validar tu pago. ${
+      type: "manual_payment_rejected",
+      title: "Tu comprobante no fue validado",
+      message: `El creador no pudo validar tu ${paymentLabel}. ${
         body.notes ? `Nota: ${body.notes}.` : "Por favor revisa el comprobante y vuelve a enviarlo o contacta al creador."
       }`,
       action_url: `/rifas/${voucher.rifa_id}`
