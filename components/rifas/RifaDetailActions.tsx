@@ -1,7 +1,7 @@
 "use client";
 
 import { showError, showWarning } from "@/lib/ui/modals";
-import { CreditCard, Loader2, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CreditCard, Loader2, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -26,6 +26,9 @@ interface Props {
   soldPercentage: number;
   soldOut: boolean;
   initialNumbers?: string[];
+  salesBlockedByCreatorFee?: boolean;
+  creatorFeeAmount?: number;
+  paidTicketsCount?: number;
 }
 
 export default function RifaDetailActions(props: Props) {
@@ -40,7 +43,10 @@ export default function RifaDetailActions(props: Props) {
     availableCount,
     soldPercentage,
     soldOut,
-    initialNumbers
+    initialNumbers,
+    salesBlockedByCreatorFee = false,
+    creatorFeeAmount = 0,
+    paidTicketsCount = 0
   } = props;
 
   const router = useRouter();
@@ -53,8 +59,7 @@ export default function RifaDetailActions(props: Props) {
   const [loading, setLoading] = useState(false);
 
   const subtotal = selected.length * numberPrice;
-  const fee = Math.round(subtotal * 0.03);
-  const total = subtotal + fee;
+  const total = subtotal;
 
   const reserveAndPay = async () => {
     if (loading) return;
@@ -62,6 +67,15 @@ export default function RifaDetailActions(props: Props) {
       void showWarning({
         title: "Selecciona números",
         message: "Elige al menos un número de la cuadrícula para continuar con la reserva."
+      });
+      return;
+    }
+
+    if (salesBlockedByCreatorFee) {
+      void showWarning({
+        title: "Rifa pausada temporalmente",
+        message:
+          "El creador debe pagar la comisión del 3% para reactivar las ventas después de 50 boletas vendidas."
       });
       return;
     }
@@ -222,14 +236,6 @@ export default function RifaDetailActions(props: Props) {
                   {formatCurrency(subtotal)}
                 </span>
               </div>
-              {fee > 0 && (
-                <div className="flex items-center justify-between text-[11px] text-slate-500">
-                  <span>Plataforma (3%)</span>
-                  <span className="font-numbers tabular-nums font-semibold text-slate-700">
-                    {formatCurrency(fee)}
-                  </span>
-                </div>
-              )}
               <div className="flex items-center justify-between pt-1">
                 <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">
                   Total
@@ -238,22 +244,44 @@ export default function RifaDetailActions(props: Props) {
                   {formatCurrency(total)}
                 </span>
               </div>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[10px] text-emerald-800">
+                El comprador paga exactamente el valor de sus números. El 3% de plataforma lo asume el creador al llegar a 50 boletas vendidas.
+              </div>
             </div>
           </div>
 
+          {salesBlockedByCreatorFee ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-900">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <div className="font-bold">Ventas pausadas temporalmente</div>
+                  <div className="mt-1">
+                    Esta rifa ya superó las 50 boletas vendidas y el creador debe pagar la comisión de plataforma de {formatCurrency(creatorFeeAmount)} para reactivar las ventas.
+                  </div>
+                  <div className="mt-1 text-amber-800/80">
+                    Boletas pagadas actuales: {paidTicketsCount}.
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <Button
             type="button"
-            disabled={soldOut || loading || selected.length === 0}
+            disabled={soldOut || loading || selected.length === 0 || salesBlockedByCreatorFee}
             onClick={reserveAndPay}
             className={cn(
               "w-full h-11 sm:h-12 text-sm sm:text-base font-bold rounded-xl shadow-cta active:scale-[0.98]",
-              soldOut
+              soldOut || salesBlockedByCreatorFee
                 ? "!bg-slate-300 !text-slate-500"
                 : "!bg-gradient-to-r from-brand-rose to-brand-violet !text-white"
             )}
           >
             {soldOut ? (
               <>Agotada</>
+            ) : salesBlockedByCreatorFee ? (
+              <>Ventas pausadas temporalmente</>
             ) : loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />

@@ -158,7 +158,7 @@ export default async function CheckoutSuccessPage({
           .filter(Boolean)
           .filter((n) => NUM_RE.test(n));
         const subtotal = numbersArr.length * rifa.number_price;
-        total = subtotal + Math.round(subtotal * 0.03);
+        total = subtotal;
       }
     } catch (e) {
       console.error("[success] rifa lookup failed", e);

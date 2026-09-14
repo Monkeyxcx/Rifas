@@ -1,24 +1,26 @@
+import CreatorFeePaymentButton from "@/components/creator/CreatorFeePaymentButton";
 import { RifaCard } from "@/components/rifas/RifaCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { createClient } from "@/lib/supabase/server";
+import { syncCreatorFeeStateForRifa } from "@/lib/creator-fees";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { Rifa, RifaStatus } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import {
-  BarChart3,
-  CalendarDays,
-  CircleDollarSign,
-  Eye,
-  Plus,
-  ReceiptText,
-  Search,
-  Settings2,
-  Share2,
-  Trophy,
-  UsersRound
+    BarChart3,
+    CalendarDays,
+    CircleDollarSign,
+    Eye,
+    Plus,
+    ReceiptText,
+    Search,
+    Settings2,
+    Share2,
+    Trophy,
+    UsersRound
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -130,6 +132,7 @@ async function loadMisCreadas(): Promise<Array<{ rifa: Rifa; status: RifaStatus 
 
 export default async function MisRifasCreadasPage() {
   const creadas = await loadMisCreadas();
+  const adminSb = createServiceClient();
   const totalRecaudado = creadas.reduce(
     (acc, c) =>
       acc +
@@ -143,6 +146,16 @@ export default async function MisRifasCreadasPage() {
   const rifasActivas = creadas.filter((c) => c.status === "active").length;
   const country = creadas[0]?.rifa.creator?.country ?? "Colombia";
   const totalLimit = creadas.reduce((acc, c) => acc + c.rifa.total_numbers, 0);
+  const creatorFeeStates = (
+    await Promise.all(
+      creadas.map(async (c) => syncCreatorFeeStateForRifa(adminSb, c.rifa.id))
+    )
+  ).filter((s): s is NonNullable<typeof s> => Boolean(s));
+  const pendingFeeStates = creatorFeeStates.filter((s) => s.blocking_sales);
+  const pendingFeeTotal = pendingFeeStates.reduce(
+    (acc, s) => acc + (s?.fee_amount ?? 0),
+    0
+  );
 
   const tabs: Array<{ v: string; label: string; count: number }> = [
     { v: "todas", label: "Todas", count: creadas.length },
@@ -216,7 +229,7 @@ export default async function MisRifasCreadasPage() {
                 {formatCurrency(totalRecaudado)}
               </p>
               <p className="mt-1 text-xs font-semibold text-slate-500">
-                {creadas.length} rifa{creadas.length === 1 ? "" : "s"} · Impuestos y comisiones aplicadas
+                {creadas.length} rifa{creadas.length === 1 ? "" : "s"} · Sin recargo para el comprador
               </p>
             </CardContent>
           </Card>
@@ -265,6 +278,75 @@ export default async function MisRifasCreadasPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Card className="mb-8 border-slate-200 bg-gradient-to-br from-slate-50 via-white to-brand-gold/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base sm:text-lg text-slate-900">
+              Comisión del creador · clara y sin cobrarle al comprador
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-slate-600">
+            <p>
+              El comprador paga únicamente el valor de sus boletas. La plataforma le
+              cobra al creador el <b>3% del valor total de la rifa</b> cuando llega a{" "}
+              <b>50 boletas vendidas y pagadas</b>.
+            </p>
+            <p>
+              Si esa comisión queda pendiente, las nuevas ventas de esa rifa se pausan
+              temporalmente hasta que el creador la pague por Mercado Pago.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="!border-emerald-200 !text-emerald-700 !bg-emerald-50">
+                Comprador sin recargo extra
+              </Badge>
+              <Badge variant="outline" className="!border-amber-200 !text-amber-800 !bg-amber-50">
+                Comisión activada al llegar a 50 ventas pagadas
+              </Badge>
+              <Badge variant="outline" className="!border-violet-200 !text-brand-violet !bg-violet-50">
+                Cobro al creador por Mercado Pago
+              </Badge>
+            </div>
+            {pendingFeeStates.length > 0 ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <div className="text-sm font-bold text-amber-900">
+                  Tienes {pendingFeeStates.length} rifa{pendingFeeStates.length === 1 ? "" : "s"} pausada{pendingFeeStates.length === 1 ? "" : "s"} por comisión pendiente
+                </div>
+                <div className="mt-1 text-xs text-amber-800">
+                  Total pendiente: {formatCurrency(pendingFeeTotal)}
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {pendingFeeStates.map((state) => (
+                    <div
+                      key={state.rifa_id}
+                      className="rounded-xl border border-amber-200 bg-white p-4"
+                    >
+                      <div className="text-sm font-bold text-slate-900">{state.title}</div>
+                      <div className="mt-1 text-xs text-slate-600">
+                        {state.paid_tickets_count} boletas pagadas · comisión pendiente {formatCurrency(state.fee_amount)}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <CreatorFeePaymentButton
+                          rifaId={state.rifa_id}
+                          amount={state.fee_amount}
+                        />
+                        <Button asChild variant="outline" className="w-full sm:w-auto">
+                          <Link href={`/rifas/crear?editar=${state.rifa_id}`}>
+                            <Settings2 className="mr-2 h-4 w-4" />
+                            Ver rifa
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+                No tienes rifas pausadas por comisión pendiente en este momento.
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* TABS + BUSCAR */}
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

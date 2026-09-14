@@ -1,12 +1,12 @@
 import {
-  Award,
-  Calendar,
-  Gift,
-  Heart,
-  MapPin,
-  Share2,
-  ShieldCheck,
-  Users
+    Award,
+    Calendar,
+    Gift,
+    Heart,
+    MapPin,
+    Share2,
+    ShieldCheck,
+    Users
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -19,6 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import RifaDetailActions from "@/components/rifas/RifaDetailActions";
+import { syncCreatorFeeStateForRifa } from "@/lib/creator-fees";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { Rifa, RifaStats } from "@/lib/types";
 import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
@@ -35,6 +36,7 @@ async function getRifaById(id: string): Promise<{
   soldNumbers: Set<string>;
   mineNumbers: Set<string>;
   currentUserId: string | null;
+  creatorFeeState: Awaited<ReturnType<typeof syncCreatorFeeStateForRifa>> | null;
 } | null> {
   try {
     const supabase = await createClient();
@@ -108,6 +110,9 @@ async function getRifaById(id: string): Promise<{
 
     const soldSet = new Set<string>();
     const mineSet = new Set<string>();
+    let creatorFeeState: Awaited<
+      ReturnType<typeof syncCreatorFeeStateForRifa>
+    > | null = null;
     try {
       const adminSb = createServiceClient();
       const { data: rows } = await adminSb
@@ -129,7 +134,21 @@ async function getRifaById(id: string): Promise<{
       /* no-op */
     }
 
-    return { rifa, stats, soldNumbers: soldSet, mineNumbers: mineSet, currentUserId: uid };
+    try {
+      const adminSb = createServiceClient();
+      creatorFeeState = await syncCreatorFeeStateForRifa(adminSb, rifa.id);
+    } catch {
+      creatorFeeState = null;
+    }
+
+    return {
+      rifa,
+      stats,
+      soldNumbers: soldSet,
+      mineNumbers: mineSet,
+      currentUserId: uid,
+      creatorFeeState
+    };
   } catch (e) {
     console.error("[rifa detail] fetch failed", e);
     return null;
@@ -158,7 +177,7 @@ export default async function RifaDetailPage({
     notFound();
   }
 
-  const { rifa, stats, soldNumbers, mineNumbers, currentUserId } = result;
+  const { rifa, stats, soldNumbers, mineNumbers, currentUserId, creatorFeeState } = result;
   if (rifa.status !== "active") {
     return notFound();
   }
@@ -441,6 +460,9 @@ export default async function RifaDetailPage({
                 soldPercentage={stats.sold_percentage}
                 soldOut={soldOut}
                 initialNumbers={preselectedNumbers}
+                salesBlockedByCreatorFee={Boolean(creatorFeeState?.blocking_sales)}
+                creatorFeeAmount={creatorFeeState?.fee_amount ?? 0}
+                paidTicketsCount={creatorFeeState?.paid_tickets_count ?? 0}
               />
             </TabsContent>
 
