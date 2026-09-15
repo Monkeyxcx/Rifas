@@ -64,12 +64,12 @@ export const GRADIENT_CLASSES = {
   cardSuccess: `bg-gradient-to-br ${COLORS_HEX.gradient.success}`,
   cardWarning: `bg-gradient-to-br ${COLORS_HEX.gradient.warning}`,
   cardDanger: `bg-gradient-to-br ${COLORS_HEX.gradient.danger}`,
-  ctaButton: `!bg-gradient-to-r ${COLORS_HEX.gradient.cta} !text-white`,
+  ctaButton: `!bg-gradient-cta !text-white`,
   ctaButtonSolidarity: `!bg-gradient-to-r from-brand-cyan to-brand-rose !text-white`,
-  progressFill: `[&>div]:bg-gradient-to-r [&>div]:from-brand-rose [&>div]:to-brand-violet [&>div]:rounded-full`,
+  progressFill: `[&>div]:bg-gradient-cta [&>div]:rounded-full`,
   progressSolidarity: `[&>div]:bg-gradient-to-r [&>div]:from-brand-cyan [&>div]:to-brand-rose [&>div]:rounded-full`,
-  tabActive: `data-[state=active]:!bg-gradient-to-r data-[state=active]:from-brand-rose data-[state=active]:to-brand-violet data-[state=active]:!text-white data-[state=active]:shadow-cta`,
-  numberActive: `bg-gradient-to-br from-brand-rose to-brand-violet text-white border-transparent shadow-cta active:scale-[0.96]`,
+  tabActive: `data-[state=active]:!bg-gradient-cta data-[state=active]:!text-white data-[state=active]:shadow-cta`,
+  numberActive: `bg-gradient-cta text-white border-transparent shadow-cta active:scale-[0.96]`,
   numberPaid: `border-2 border-emerald-400 bg-gradient-to-br from-emerald-500 via-brand-cyan to-brand-rose text-center shadow-md shadow-emerald-500/20`
 } as const;
 

@@ -16,8 +16,9 @@ const badgeVariants = cva(
         pending: "bg-warning text-white",
         closed: "bg-slate-700 text-white",
         outline:
-          "text-slate-900 border border-slate-200 bg-white hover:bg-slate-50",
-        secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200",
+          "text-slate-900 border border-slate-200 bg-white hover:bg-slate-50 dark:text-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800",
+        secondary:
+          "bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
         destructive: "bg-destructive text-destructive-foreground"
       }
     },

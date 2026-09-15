@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   UserRound,
@@ -28,6 +29,7 @@ interface Props {
 
 export function AuthMenu({ verticalStack = false }: Props) {
   const { user, profile, loading, signOut } = useAuthSession();
+  const [open, setOpen] = useState(false);
 
   if (verticalStack) {
     return (
@@ -144,12 +146,14 @@ export function AuthMenu({ verticalStack = false }: Props) {
       .toUpperCase() ??
     "R";
 
+  const closeAndGo = () => setOpen(false);
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button
           aria-label="Menú usuario"
-          className="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white pl-1.5 pr-3 py-1.5 shadow-sm hover:border-brand-rose/40 hover:shadow-md transition-all group"
+          className="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white pl-1.5 pr-3 py-1.5 shadow-sm hover:border-brand-rose/40 hover:shadow-md transition-all group dark:border-slate-700 dark:bg-slate-900 dark:hover:border-brand-rose/50"
         >
           <span
             aria-hidden
@@ -160,7 +164,7 @@ export function AuthMenu({ verticalStack = false }: Props) {
           >
             {initials}
           </span>
-          <span className="text-sm font-semibold text-slate-800 max-w-[140px] truncate">
+          <span className="text-sm font-semibold text-slate-800 max-w-[140px] truncate dark:text-slate-100">
             {profile?.display_name ??
               (user.email ? user.email.split("@")[0] : "Mi cuenta")}
           </span>
@@ -228,25 +232,25 @@ export function AuthMenu({ verticalStack = false }: Props) {
 
           <nav className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Button asChild variant="outline" className="justify-start">
-              <Link href="/perfil">
+              <Link href="/perfil" onClick={closeAndGo}>
                 <UserRound className="h-4 w-4 text-brand-rose" />
                 Mi perfil
               </Link>
             </Button>
             <Button asChild variant="outline" className="justify-start">
-              <Link href="/mis-rifas/participando">
+              <Link href="/mis-rifas/participando" onClick={closeAndGo}>
                 <Ticket className="h-4 w-4 text-brand-cyan" />
                 Mis números
               </Link>
             </Button>
             <Button asChild variant="outline" className="justify-start">
-              <Link href="/mis-rifas/creadas">
+              <Link href="/mis-rifas/creadas" onClick={closeAndGo}>
                 <Gift className="h-4 w-4 text-brand-violet" />
                 Rifas creadas
               </Link>
             </Button>
             <Button asChild variant="gradient" className="justify-start">
-              <Link href="/rifas/crear">
+              <Link href="/rifas/crear" onClick={closeAndGo}>
                 <Plus className="h-4 w-4" />
                 Crear rifa
               </Link>
@@ -257,7 +261,10 @@ export function AuthMenu({ verticalStack = false }: Props) {
             <Button
               variant="ghost"
               className="text-slate-600 hover:text-destructive hover:bg-destructive/10"
-              onClick={signOut}
+              onClick={() => {
+                setOpen(false);
+                void signOut();
+              }}
             >
               <LogOut className="h-4 w-4" />
               Cerrar sesión

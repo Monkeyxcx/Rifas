@@ -39,7 +39,7 @@ const SOCIAL = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-slate-200 bg-white mt-10 sm:mt-16">
+    <footer className="border-t border-slate-200 bg-white mt-6 sm:mt-16 dark:border-slate-800 dark:bg-slate-950">
       <div className="container max-w-content py-8 md:py-12 md:py-16">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-10">
           <div className="md:col-span-4 space-y-3 md:space-y-4">
@@ -47,16 +47,20 @@ export function Footer() {
               <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-cta shadow-cta text-white">
                 <Ticket className="h-5 w-5" strokeWidth={2.5} />
               </span>
-              <span className="font-display text-xl font-extrabold">
-                Rifas<span className="text-brand-rose">Center</span>
+              <span className="font-display text-xl font-extrabold text-slate-900 dark:text-white">
+                Rifas<span className="text-gradient-cta">Center</span>
               </span>
             </Link>
             <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-xs">
               Plataforma oficial de rifas digitales. Participa por premios increíbles o crea la tuya. 100% transparente, seguro y sin letras pequeñas.
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="badge-solidarity text-[10px] sm:text-xs"><Heart className="h-3 w-3" /> Apoyamos causas</span>
-              <span className="badge-prize text-[10px] sm:text-xs hidden sm:inline"><Gift className="h-3 w-3" /> +100 premios mensuales</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] sm:text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900">
+                <Heart className="h-3 w-3 text-brand-violet" /> Apoyamos causas
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] sm:text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900">
+                <Gift className="h-3 w-3 text-amber-500" /> Premios reales
+              </span>
             </div>
             <div className="flex items-center gap-2 pt-1 md:hidden">
               {SOCIAL.map(({ icon: Icon, href, label }) => (
@@ -64,7 +68,7 @@ export function Footer() {
                   key={label}
                   href={href}
                   aria-label={label}
-                  className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500 hover:text-white hover:bg-brand-rose hover:border-brand-rose transition-all"
+                  className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500 hover:text-white hover:bg-brand-rose hover:border-brand-rose transition-all dark:border-slate-700"
                 >
                   <Icon className="h-4 w-4" />
                 </a>
@@ -88,7 +92,7 @@ export function Footer() {
                           className="group relative inline-flex items-center gap-1 text-sm text-slate-400 cursor-not-allowed select-none"
                         >
                           {link.label}
-                          <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                          <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:border-slate-700">
                             Pronto
                           </span>
                         </span>
@@ -120,7 +124,7 @@ export function Footer() {
                   key={label}
                   href={href}
                   aria-label={label}
-                  className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 text-slate-500 hover:text-white hover:bg-brand-rose hover:border-brand-rose transition-all"
+                  className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 text-slate-500 hover:text-white hover:bg-brand-rose hover:border-brand-rose transition-all dark:border-slate-700"
                 >
                   <Icon className="h-4 w-4" />
                 </a>
@@ -129,7 +133,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 md:mt-12 pt-6 md:pt-8 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+        <div className="mt-8 md:mt-12 pt-6 md:pt-8 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 dark:border-slate-800">
           <p className="text-[11px] sm:text-xs text-slate-400 text-center sm:text-left">
             © {new Date().getFullYear()} RifasCenter · Todos los derechos reservados.
           </p>

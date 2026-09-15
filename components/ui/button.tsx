@@ -4,21 +4,22 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-sans font-semibold text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-rose/60 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] select-none",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-sans font-semibold text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-rose/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] select-none",
   {
     variants: {
       variant: {
         default:
-          "bg-brand-rose text-white hover:bg-[#E02148] shadow-cta",
+          "bg-gradient-cta text-white shadow-cta hover:brightness-110",
         primary:
-          "bg-brand-rose text-white hover:bg-[#E02148] shadow-cta",
+          "bg-gradient-cta text-white shadow-cta hover:brightness-110",
         gradient:
           "bg-gradient-cta text-white shadow-cta hover:brightness-110",
         secondary:
-          "bg-transparent text-brand-rose border-2 border-brand-rose hover:bg-rose-50",
+          "bg-transparent text-brand-rose border-2 border-brand-rose hover:bg-rose-50 dark:hover:bg-rose-950/40",
         outline:
-          "border border-slate-200 bg-white hover:bg-slate-50 text-slate-900 hover:border-slate-300",
-        ghost: "hover:bg-slate-100 text-slate-700 hover:text-slate-900",
+          "border border-slate-200 bg-white hover:bg-slate-50 text-slate-900 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:hover:border-slate-600",
+        ghost:
+          "hover:bg-slate-100 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white",
         success: "bg-success text-white hover:brightness-110",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",

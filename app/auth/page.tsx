@@ -4,9 +4,8 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Ticket, ArrowLeft, Lock, Sparkles, Loader2, Mail, Eye, EyeOff } from "lucide-react";
+import { Ticket, ArrowLeft, Lock, Loader2, Mail, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -275,7 +274,7 @@ function AuthInner() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-50">
+    <div className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-60"
@@ -291,8 +290,8 @@ function AuthInner() {
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-cta shadow-cta text-white transition-transform group-hover:scale-105">
               <Ticket className="h-5 w-5" strokeWidth={2.5} />
             </span>
-            <span className="font-display text-xl font-extrabold tracking-tight">
-              Rifas<span className="text-brand-rose">Center</span>
+            <span className="font-display text-xl font-extrabold tracking-tight text-slate-900">
+              Rifas<span className="text-gradient-cta">Center</span>
             </span>
           </Link>
 
@@ -306,16 +305,11 @@ function AuthInner() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center py-4">
           <div className="hidden lg:block space-y-8">
-            <Badge variant="outline" className="bg-white/70 backdrop-blur">
-              <Sparkles className="h-3.5 w-3.5 mr-1.5 text-brand-rose" />
-              Beta abierta · Regístrate gratis
-            </Badge>
-
             <h1 className="font-display font-black tracking-tight !leading-[1.05]">
-              <span className="text-5xl block mb-3 text-slate-900">
+              <span className="text-solid text-5xl block mb-3 text-slate-900">
                 Tu número, tu premio,
               </span>
-              <span className="text-5xl md:text-6xl block bg-gradient-to-r from-brand-rose via-fuchsia-500 to-brand-violet bg-clip-text text-transparent">
+              <span className="text-5xl md:text-6xl block text-gradient-cta">
                 tu causa.
               </span>
             </h1>
@@ -353,15 +347,15 @@ function AuthInner() {
                     "linear-gradient(135deg, hsla(348, 97%, 65%, 0.5), hsla(270, 95%, 60%, 0.5))"
                 }}
               />
-              <div className="relative rounded-2xl border border-slate-200/80 bg-white/90 backdrop-blur p-5 sm:p-8 shadow-2xl">
+              <div className="relative rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-8 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
                 <div className="mb-6 flex flex-col items-center text-center">
                   <span className="grid h-12 w-12 place-items-center rounded-xl bg-gradient-cta shadow-cta text-white mb-3">
                     <Ticket className="h-6 w-6" strokeWidth={2.5} />
                   </span>
-                  <h2 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+                  <h2 className="text-solid font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
                     {mode === "signup" ? "Crea tu cuenta" : "Inicia sesión"}
                   </h2>
-                  <p className="mt-1.5 text-sm text-slate-600">
+                  <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
                     {mode === "signup"
                       ? "En 30 segundos. Sin tarjeta ni letra pequeña."
                       : "Bienvenido de vuelta. Continúa participando."}
@@ -374,7 +368,7 @@ function AuthInner() {
                       <div className="space-y-1.5">
                         <Label
                           htmlFor="af-fn"
-                          className="text-sm font-medium text-slate-700"
+                          className="text-sm font-medium text-slate-700 dark:text-slate-300"
                         >
                           Nombre completo
                         </Label>
@@ -384,7 +378,7 @@ function AuthInner() {
                           placeholder="Ej: Alejandro Gómez"
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
-                          className="h-11 text-base rounded-xl border-slate-200 focus:ring-brand-rose/20 focus:border-brand-rose/60"
+                          className="h-11 text-base rounded-xl border-slate-200 focus:ring-brand-rose/20 focus:border-brand-rose/60 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                         />
                       </div>
                     )}
@@ -392,7 +386,7 @@ function AuthInner() {
                     <div className="space-y-1.5 relative">
                       <Label
                         htmlFor="af-email"
-                        className="text-sm font-medium text-slate-700"
+                        className="text-sm font-medium text-slate-700 dark:text-slate-300"
                       >
                         Correo electrónico
                       </Label>
@@ -405,7 +399,7 @@ function AuthInner() {
                           placeholder="tu@correo.com"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="h-11 pl-10 text-base rounded-xl border-slate-200 focus:ring-brand-rose/20 focus:border-brand-rose/60"
+                          className="h-11 pl-10 text-base rounded-xl border-slate-200 focus:ring-brand-rose/20 focus:border-brand-rose/60 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                           disabled={loading}
                         />
                       </div>
@@ -421,7 +415,7 @@ function AuthInner() {
                       <div className="flex items-center justify-between">
                         <Label
                           htmlFor="af-pwd"
-                          className="text-sm font-medium text-slate-700"
+                          className="text-sm font-medium text-slate-700 dark:text-slate-300"
                         >
                           Contraseña
                         </Label>
@@ -482,7 +476,7 @@ function AuthInner() {
                           placeholder="••••••••"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          className="h-11 pr-11 text-base rounded-xl border-slate-200 focus:ring-brand-rose/20 focus:border-brand-rose/60"
+                          className="h-11 pr-11 text-base rounded-xl border-slate-200 focus:ring-brand-rose/20 focus:border-brand-rose/60 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                           disabled={loading}
                         />
                         <button
@@ -505,7 +499,7 @@ function AuthInner() {
                       <div className="space-y-1.5">
                         <Label
                           htmlFor="af-pwd2"
-                          className="text-sm font-medium text-slate-700"
+                          className="text-sm font-medium text-slate-700 dark:text-slate-300"
                         >
                           Confirmar contraseña
                         </Label>
@@ -516,7 +510,7 @@ function AuthInner() {
                           placeholder="••••••••"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="h-11 text-base rounded-xl border-slate-200 focus:ring-brand-rose/20 focus:border-brand-rose/60"
+                          className="h-11 text-base rounded-xl border-slate-200 focus:ring-brand-rose/20 focus:border-brand-rose/60 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                           disabled={loading}
                         />
                       </div>
@@ -527,7 +521,7 @@ function AuthInner() {
                       size="lg"
                       disabled={loading || checkingEmail}
                       className={cn(
-                        "h-11 w-full rounded-xl font-bold shadow-cta transition text-base !bg-gradient-to-r !from-brand-rose !to-brand-violet text-white hover:!brightness-110 active:scale-[0.98] disabled:opacity-70"
+                        "h-11 w-full rounded-xl font-bold shadow-cta transition text-base !bg-gradient-cta text-white hover:!brightness-110 active:scale-[0.98] disabled:opacity-70"
                       )}
                     >
                       {loading ? (
@@ -545,7 +539,7 @@ function AuthInner() {
                     <div className="pt-2 text-sm text-center">
                       {mode === "signup" ? (
                         <>
-                          <span className="text-slate-600">
+                          <span className="text-slate-600 dark:text-slate-400">
                             ¿Ya tienes cuenta?{" "}
                           </span>
                           <button
@@ -558,7 +552,7 @@ function AuthInner() {
                         </>
                       ) : (
                         <>
-                          <span className="text-slate-600">
+                          <span className="text-slate-600 dark:text-slate-400">
                             ¿No tienes cuenta?{" "}
                           </span>
                           <button
@@ -572,24 +566,24 @@ function AuthInner() {
                       )}
                     </div>
 
-                    <div className="mt-6 pt-5 border-t border-slate-200/80 text-xs text-slate-500 text-center leading-relaxed">
+                    <div className="mt-6 pt-5 border-t border-slate-200 text-xs text-slate-500 text-center leading-relaxed dark:border-slate-700 dark:text-slate-400">
                       Al continuar aceptas los{" "}
                       <span
                         title="Próximamente"
-                        className="inline-flex items-center gap-1 underline decoration-slate-300 text-slate-500 cursor-not-allowed select-none font-medium"
+                        className="inline-flex items-center gap-1 underline decoration-slate-300 text-slate-500 cursor-not-allowed select-none font-medium dark:decoration-slate-600 dark:text-slate-400"
                       >
                         Términos y condiciones
-                        <span className="rounded-full bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500 not-italic no-underline">
+                        <span className="rounded-full bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500 not-italic no-underline dark:bg-slate-800 dark:border-slate-600 dark:text-slate-400">
                           Pronto
                         </span>
                       </span>{" "}
                       y la{" "}
                       <span
                         title="Próximamente"
-                        className="inline-flex items-center gap-1 underline decoration-slate-300 text-slate-500 cursor-not-allowed select-none font-medium"
+                        className="inline-flex items-center gap-1 underline decoration-slate-300 text-slate-500 cursor-not-allowed select-none font-medium dark:decoration-slate-600 dark:text-slate-400"
                       >
                         Política de privacidad
-                        <span className="rounded-full bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500 not-italic no-underline">
+                        <span className="rounded-full bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500 not-italic no-underline dark:bg-slate-800 dark:border-slate-600 dark:text-slate-400">
                           Pronto
                         </span>
                       </span>

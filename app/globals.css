@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 210 40% 98%;
+    --foreground: 222.2 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222.2 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 222.2 47% 11%;
 
     --primary: 348 100% 59%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 190 100% 50%;
-    --secondary-foreground: 222.2 84% 4.9%;
+    --secondary-foreground: 222.2 47% 11%;
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
     --accent: 46 100% 50%;
-    --accent-foreground: 222.2 84% 4.9%;
+    --accent-foreground: 222.2 47% 11%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
@@ -33,6 +33,36 @@
     --ring: 348 100% 59%;
 
     --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 348 100% 59%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 190 80% 45%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 46 100% 50%;
+    --accent-foreground: 222 47% 7%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 348 100% 59%;
   }
 
   * {
@@ -52,7 +82,15 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-display text-slate-900 text-balance;
+    @apply font-display text-balance;
+  }
+
+  h1, h2 {
+    @apply bg-gradient-cta bg-clip-text text-transparent;
+  }
+
+  h3, h4, h5, h6 {
+    @apply text-slate-900 dark:text-slate-100;
   }
 
   h1 {
@@ -72,7 +110,7 @@
   }
 
   :focus-visible {
-    @apply outline-none ring-2 ring-offset-2 ring-brand-rose/60 rounded-md;
+    @apply outline-none ring-2 ring-offset-2 ring-brand-rose/60 rounded-md dark:ring-offset-slate-950;
   }
 
   ::selection {
@@ -91,6 +129,7 @@
            whitespace-nowrap rounded-lg text-sm transition-all duration-200
            focus-visible:outline-none focus-visible:ring-2
            focus-visible:ring-brand-rose/60 focus-visible:ring-offset-2
+           dark:focus-visible:ring-offset-slate-950
            disabled:pointer-events-none disabled:opacity-50
            active:scale-[0.98] select-none;
   }
@@ -100,7 +139,7 @@
   .btn-lg { @apply btn-base h-14 px-8 text-lg; }
 
   .btn-primary {
-    @apply bg-brand-rose text-white hover:bg-[#E02148] shadow-cta;
+    @apply bg-gradient-cta text-white shadow-cta hover:brightness-110;
   }
 
   .btn-primary-gradient {
@@ -109,11 +148,12 @@
 
   .btn-secondary {
     @apply bg-transparent border-2 border-brand-rose text-brand-rose
-           hover:bg-rose-50;
+           hover:bg-rose-50 dark:hover:bg-rose-950/40;
   }
 
   .btn-ghost {
-    @apply bg-transparent text-slate-700 hover:bg-slate-100;
+    @apply bg-transparent text-slate-700 hover:bg-slate-100
+           dark:text-slate-300 dark:hover:bg-slate-800;
   }
 
   .input-base {
@@ -121,12 +161,15 @@
            px-4 text-sm text-slate-900 placeholder:text-slate-400
            transition-colors
            focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-brand-rose
-           disabled:cursor-not-allowed disabled:opacity-50;
+           disabled:cursor-not-allowed disabled:opacity-50
+           dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100
+           dark:placeholder:text-slate-500 dark:focus:ring-rose-900;
   }
 
   .card-base {
     @apply bg-white rounded-xl border border-slate-200 shadow-md
-           hover:shadow-lg transition-shadow duration-200;
+           hover:shadow-lg transition-shadow duration-200
+           dark:bg-slate-900 dark:border-slate-800;
   }
 
   .number-cell {
@@ -136,16 +179,19 @@
 
   .number-available {
     @apply number-cell bg-white border-2 border-slate-200 text-slate-700
-           hover:border-brand-cyan hover:scale-105 cursor-pointer;
+           hover:border-brand-cyan hover:scale-105 cursor-pointer
+           dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200;
   }
 
   .number-selected {
     @apply number-cell bg-gradient-cta text-white shadow-md scale-110 z-10
-           ring-2 ring-white ring-offset-2 ring-offset-slate-50;
+           ring-2 ring-white ring-offset-2 ring-offset-slate-50
+           dark:ring-offset-slate-950;
   }
 
   .number-sold {
-    @apply number-cell bg-slate-100 text-slate-400 line-through cursor-not-allowed;
+    @apply number-cell bg-slate-100 text-slate-400 line-through cursor-not-allowed
+           dark:bg-slate-800 dark:text-slate-500;
   }
 
   .number-mine {
@@ -171,6 +217,75 @@
     text-wrap: balance;
   }
 
+  /* Dark mode: lift hardcoded slate text so muted copy stays readable */
+  .dark .text-slate-900 { color: rgb(241 245 249); } /* slate-100 */
+  .dark .text-slate-800 { color: rgb(226 232 240); } /* slate-200 */
+  .dark .text-slate-700 { color: rgb(203 213 225); } /* slate-300 */
+  .dark .text-slate-600 { color: rgb(203 213 225); } /* slate-300 */
+  .dark .text-slate-500 { color: rgb(148 163 184); } /* slate-400 */
+  .dark .text-slate-400 { color: rgb(148 163 184); } /* slate-400 */
+
+  /* Light panels in dark mode: keep ink dark so forms/cards stay readable */
+  .dark .surface-light .text-slate-900 { color: rgb(15 23 42); }
+  .dark .surface-light .text-slate-800 { color: rgb(30 41 59); }
+  .dark .surface-light .text-slate-700 { color: rgb(51 65 85); }
+  .dark .surface-light .text-slate-600 { color: rgb(71 85 105); }
+  .dark .surface-light .text-slate-500 { color: rgb(100 116 139); }
+  .dark .surface-light .text-slate-400 { color: rgb(148 163 184); }
+  .dark .surface-light input,
+  .dark .surface-light textarea,
+  .dark .surface-light select {
+    background-color: rgb(255 255 255) !important;
+    color: rgb(15 23 42) !important;
+    border-color: rgb(226 232 240) !important;
+  }
+  .dark .surface-light input::placeholder,
+  .dark .surface-light textarea::placeholder {
+    color: rgb(148 163 184) !important;
+  }
+
+  /* Surfaces that stay “paper” in light mode */
+  .dark .bg-slate-50 { background-color: rgb(15 23 42); } /* slate-900 */
+  .dark .bg-slate-100 { background-color: rgb(30 41 59); } /* slate-800 */
+  .dark .bg-white { background-color: rgb(15 23 42); } /* slate-900 */
+  .dark .bg-white\/60 { background-color: rgb(15 23 42 / 0.6); }
+  .dark .bg-white\/70 { background-color: rgb(15 23 42 / 0.7); }
+  .dark .bg-white\/80 { background-color: rgb(15 23 42 / 0.8); }
+  .dark .bg-white\/90 { background-color: rgb(15 23 42 / 0.9); }
+  .dark .bg-white\/95 { background-color: rgb(15 23 42 / 0.95); }
+
+  /* Gradient stops that used white/slate-50 paper */
+  .dark .via-white {
+    --tw-gradient-stops: var(--tw-gradient-from), rgb(15 23 42) var(--tw-gradient-via-position), var(--tw-gradient-to);
+  }
+  .dark .to-white {
+    --tw-gradient-to: rgb(15 23 42) var(--tw-gradient-to-position);
+  }
+  .dark .from-slate-50 {
+    --tw-gradient-from: rgb(15 23 42) var(--tw-gradient-from-position);
+    --tw-gradient-to: rgb(15 23 42 / 0) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+  .dark .to-slate-50 {
+    --tw-gradient-to: rgb(15 23 42) var(--tw-gradient-to-position);
+  }
+  .dark .via-slate-50 {
+    --tw-gradient-stops: var(--tw-gradient-from), rgb(15 23 42) var(--tw-gradient-via-position), var(--tw-gradient-to);
+  }
+
+  .dark .border-slate-200 { border-color: rgb(51 65 85); } /* slate-700 */
+  .dark .border-slate-200\/70 { border-color: rgb(51 65 85 / 0.7); }
+  .dark .border-slate-200\/80 { border-color: rgb(51 65 85 / 0.8); }
+  .dark .border-slate-300 { border-color: rgb(71 85 105); } /* slate-600 */
+
+  /* Reset gradient titles when solid color is needed (e.g. on colored banners) */
+  .text-solid {
+    background-image: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    color: inherit;
+  }
+
   .gradient-hero      { background-image: linear-gradient(135deg, #7D2AE6 0%, #FF2D55 50%, #FFC300 100%); }
   .gradient-cta       { background-image: linear-gradient(90deg, #FF2D55 0%, #7D2AE6 100%); }
   .gradient-premio    { background-image: linear-gradient(135deg, #FFC300 0%, #FF9500 100%); }
@@ -184,4 +299,5 @@
     background: #cbd5e1; border-radius: 999px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb { background: #475569; }
 }
