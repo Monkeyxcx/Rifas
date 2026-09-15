@@ -1,11 +1,19 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { CreditCard, ExternalLink, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { CreditCard, ExternalLink, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
 import { flagReservaAsPendingMP } from "@/components/checkout/MPPaymentWatcherOverlay";
-import { showConfirm, showError } from "@/lib/ui/modals";
+import { showError } from "@/lib/ui/modals";
 
 interface Props {
   reservaId: string;
@@ -17,11 +25,6 @@ interface Props {
   payerName: string;
   payerPhone: string;
 }
-
-const POPUP_PARAMS =
-  "popup,width=500,height=800,left=80,top=40,noopener,noreferrer";
-const POPUP_NAME = "rifasmpcheckout";
-const POPUP_ABOUT_BLANK_CHECK_MS = 600;
 
 function resolveEffectiveInitPoint(body: {
   init_point?: string;
@@ -38,6 +41,14 @@ function resolveEffectiveInitPoint(body: {
   return null;
 }
 
+function isCheckoutReturnPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/checkout/success") ||
+    pathname.startsWith("/checkout/pending") ||
+    pathname.startsWith("/checkout/failure")
+  );
+}
+
 export default function CheckoutPaymentButton({
   reservaId,
   rifaId,
@@ -48,60 +59,80 @@ export default function CheckoutPaymentButton({
   payerName,
   payerPhone
 }: Props) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [lastInitPoint, setLastInitPoint] = useState<string | null>(null);
-  const lastInitPointRef = useRef<string | null>(null);
-  const openedWindowRef = useRef<Window | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [initPoint, setInitPoint] = useState<string | null>(null);
+  const [iframeReady, setIframeReady] = useState(false);
+  const [iframeBlockedHint, setIframeBlockedHint] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const blockHintTimerRef = useRef<number | null>(null);
 
-  const syncPoint = (p: string | null) => {
-    setLastInitPoint(p);
-    lastInitPointRef.current = p;
-  };
-
-  const openViaSyncAnchorClick = (initPoint: string): boolean => {
-    try {
-      const a = document.createElement("a");
-      a.href = initPoint;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.style.display = "none";
-      document.body.appendChild(a);
-      const evt = new MouseEvent("click", {
-        view: window,
-        bubbles: true,
-        cancelable: true,
-        button: 0
-      });
-      const dispatched = a.dispatchEvent(evt);
-      document.body.removeChild(a);
-      return dispatched !== false;
-    } catch (e) {
-      console.warn("[MP] anchor dispatch click fallback failed", e);
-      return false;
+  const clearBlockHintTimer = useCallback(() => {
+    if (blockHintTimerRef.current != null) {
+      window.clearTimeout(blockHintTimerRef.current);
+      blockHintTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const openRedirectCurrentTab = (initPoint: string) => {
-    if (typeof window !== "undefined") {
-      window.location.href = initPoint;
-    }
-  };
+  const closeModal = useCallback(() => {
+    clearBlockHintTimer();
+    setModalOpen(false);
+    setIframeReady(false);
+    setIframeBlockedHint(false);
+  }, [clearBlockHintTimer]);
 
-  const copyInitPointToClipboard = async (initPoint: string) => {
+  const handleIframeNavigation = useCallback(() => {
+    const frame = iframeRef.current;
+    if (!frame) return;
     try {
-      await navigator.clipboard.writeText(initPoint);
-      return true;
-    } catch {
-        return false;
+      const href = frame.contentWindow?.location?.href ?? "";
+      const path = frame.contentWindow?.location?.pathname ?? "";
+      const search = frame.contentWindow?.location?.search ?? "";
+      if (!href || href === "about:blank") return;
+
+      // Same-origin return from Mercado Pago back_urls
+      if (isCheckoutReturnPath(path)) {
+        closeModal();
+        router.push(`${path}${search}`);
+        return;
       }
+
+      // Same-origin mock preference lands directly on success
+      if (path.startsWith("/checkout/")) {
+        setIframeReady(true);
+        clearBlockHintTimer();
+        setIframeBlockedHint(false);
+      }
+    } catch {
+      // Cross-origin (still on mercadopago.com) — expected while paying
+      setIframeReady(true);
+      clearBlockHintTimer();
+      setIframeBlockedHint(false);
+    }
+  }, [clearBlockHintTimer, closeModal, router]);
+
+  useEffect(() => {
+    if (!modalOpen || !initPoint) return;
+    clearBlockHintTimer();
+    setIframeBlockedHint(false);
+    setIframeReady(false);
+    // If CSP blocks the frame, onLoad may never fire usefully — nudge after a few seconds
+    blockHintTimerRef.current = window.setTimeout(() => {
+      setIframeBlockedHint(true);
+    }, 4500);
+    return clearBlockHintTimer;
+  }, [modalOpen, initPoint, clearBlockHintTimer]);
+
+  const openInSameTab = () => {
+    if (!initPoint) return;
+    window.location.href = initPoint;
   };
 
   const pay = async () => {
     if (loading) return;
     setLoading(true);
-    setLastInitPoint(null);
 
-    let initPoint: string | null = null;
     try {
       const res = await fetch("/api/mercadopago/create-preference", {
         method: "POST",
@@ -123,10 +154,9 @@ export default function CheckoutPaymentButton({
         testing?: boolean;
         error?: string;
         message?: string;
-        [k: string]: unknown;
       };
-      initPoint = resolveEffectiveInitPoint(body);
-      if (!res.ok || !initPoint) {
+      const point = resolveEffectiveInitPoint(body);
+      if (!res.ok || !point) {
         console.error("create-preference failed", res.status, body);
         void showError({
           title: "No se pudo generar el link de pago",
@@ -135,10 +165,8 @@ export default function CheckoutPaymentButton({
             body.message ??
             "Intenta nuevamente en 10 segundos."
         });
-        setLoading(false);
         return;
       }
-      syncPoint(initPoint);
 
       try {
         flagReservaAsPendingMP(reservaId);
@@ -146,80 +174,10 @@ export default function CheckoutPaymentButton({
         /* ignore */
       }
 
-      // Estrategia 1: window.open DIRECTAMENTE con la URL de MP (nunca about:blank primero)
-      let openedOk = false;
-      try {
-        const opened = window.open(initPoint, POPUP_NAME, POPUP_PARAMS);
-        if (opened && !opened.closed) {
-          openedWindowRef.current = opened;
-          openedOk = true;
-          window.setTimeout(() => {
-            try {
-              if (opened && !opened.closed) {
-                const href = String((opened as unknown as { location?: { href?: string } }).location?.href ?? "");
-                if (!href || href === "" || href === "about:blank") {
-                  console.warn("[MP] popup quedó about:blank, intentando anchor click fallback.");
-                  void openViaSyncAnchorClick(initPoint!);
-                }
-              }
-            } catch {
-              // cross-origin → significa que MP ya cargó (bien)
-            }
-          }, POPUP_ABOUT_BLANK_CHECK_MS);
-        }
-      } catch (e) {
-        console.warn("[MP] window.open popup attempt failed", e);
-      }
-
-      // Estrategia 2: <a target=_blank> click programático (mejor bypass popup blockers)
-      if (!openedOk) {
-        try {
-          const viaAnchor = openViaSyncAnchorClick(initPoint);
-          if (viaAnchor) {
-            openedOk = true;
-          }
-        } catch (e) {
-          console.warn("[MP] anchor-click-target-blank failed", e);
-        }
-      }
-
-      // Estrategia 3: redirect misma pestaña (popup blocker estricto)
-      let selfRedirected = false;
-      if (!openedOk) {
-        const okGo = await showConfirm({
-          title: "Ventanas emergentes bloqueadas",
-          message:
-            "Tu navegador bloqueó la ventana de Mercado Pago.\n" +
-            "\nPodemos redirigirte a Mercado Pago en esta misma pestaña y al regresar RifasCenter continuará detectando el pago automáticamente.\n" +
-            "\n¿Continuar en esta misma pestaña?",
-          confirmText: "Continuar a Mercado Pago",
-          dangerMode: false
-        });
-        if (okGo) {
-          openRedirectCurrentTab(initPoint);
-          selfRedirected = true;
-        }
-      }
-
-      // Estrategia 4 (último recurso): link manual + copiar al portapapeles
-      if (!openedOk && !selfRedirected) {
-        const copied = await copyInitPointToClipboard(initPoint);
-        const prefix = copied
-          ? "Se copió el link de pago al portapapeles.\n\n"
-          : "Copia el link de pago a mano:\n\n";
-        const suffix =
-          "\n\nAbre una pestaña nueva, pégalo y accede a Mercado Pago. Al terminar el pago regresarás aquí.";
-        void showError({
-          title: "Abre el link manualmente",
-          html:
-            (prefix + initPoint + suffix).replace(/[&<>]/g, (c) =>
-              c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"
-            ).replace(/\n/g, "<br/>")
-        });
-      }
+      setInitPoint(point);
+      setModalOpen(true);
     } catch (e) {
       console.error(e);
-      syncPoint(null);
       void showError({
         title: "Error de conexión",
         message: "Sin conexión con el servidor. Intenta nuevamente en 30 segundos."
@@ -235,7 +193,7 @@ export default function CheckoutPaymentButton({
         type="button"
         size="lg"
         disabled={loading}
-        onClick={pay}
+        onClick={() => void pay()}
         className="group relative h-14 w-full !bg-gradient-to-r from-brand-gold via-rose-500 to-brand-violet text-base font-black text-white shadow-cta shadow-rose-500/30 transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
       >
         <span className="absolute inset-0 rounded-xl bg-white/10 opacity-0 transition group-hover:opacity-100" />
@@ -243,12 +201,12 @@ export default function CheckoutPaymentButton({
           {loading ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" strokeWidth={2.3} />
-              Generando link seguro Mercado Pago…
+              Generando checkout seguro…
             </>
           ) : (
             <>
               <CreditCard className="h-5 w-5" strokeWidth={2.3} />
-              💳 Pagar con Mercado Pago ·{" "}
+              Pagar con Mercado Pago ·{" "}
               <span className="font-numbers tabular-nums">
                 {formatCurrency(total, currency)}
               </span>
@@ -257,47 +215,96 @@ export default function CheckoutPaymentButton({
         </span>
       </Button>
 
-      {/* Footer helpers */}
-      <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-slate-500">
-        <div className="flex items-center gap-1.5">
-          <ExternalLink className="h-3 w-3 text-brand-violet" strokeWidth={2.2} />
-          <span>
-            Se abrirá Mercado Pago en <b>ventana nueva</b> (esta página se queda esperando el pago).
-          </span>
-        </div>
-        {lastInitPoint && (
-          <div className="flex items-center gap-3">
-            <a
-              href={lastInitPoint}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 decoration-dotted hover:text-brand-rose hover:decoration-brand-rose font-semibold"
-            >
-              Abrir link MP directamente
-            </a>
-            <button
-              type="button"
-              onClick={() => {
-                if (!lastInitPointRef.current) return;
-                void showConfirm({
-                  title: "Abrir en esta pestaña",
-                  message:
-                    "¿Redirigirte a Mercado Pago en esta pestaña?\n(Volverás aquí después del pago).",
-                  confirmText: "Abrir aquí",
-                  dangerMode: false
-                }).then((ok) => {
-                  if (ok && lastInitPointRef.current) {
-                    openRedirectCurrentTab(lastInitPointRef.current);
-                  }
-                });
-              }}
-              className="underline underline-offset-2 decoration-dotted hover:text-brand-rose hover:decoration-brand-rose font-semibold"
-            >
-              Prefiero abrirlo en esta pestaña
-            </button>
-          </div>
-        )}
+      <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500">
+        <ExternalLink className="h-3 w-3 text-brand-violet shrink-0" strokeWidth={2.2} />
+        <span>
+          El checkout de Mercado Pago se abre en un <b>modal</b> en esta misma página.
+        </span>
       </div>
+
+      <Dialog
+        open={modalOpen}
+        onOpenChange={(open) => {
+          if (!open) closeModal();
+          else setModalOpen(true);
+        }}
+      >
+        <DialogContent className="flex h-[min(92vh,880px)] w-[min(96vw,720px)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:rounded-2xl">
+          <DialogHeader className="shrink-0 border-b border-slate-200 px-4 py-3 pr-12 text-left sm:px-5">
+            <DialogTitle className="text-base sm:text-lg">
+              Pago seguro · Mercado Pago
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              Completa el pago aquí. Esta página seguirá esperando la confirmación.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="relative min-h-0 flex-1 bg-slate-50">
+            {!iframeReady && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/80 backdrop-blur-[2px]">
+                <Loader2 className="h-8 w-8 animate-spin text-brand-rose" />
+                <p className="text-sm font-semibold text-slate-700">
+                  Cargando Mercado Pago…
+                </p>
+              </div>
+            )}
+
+            {initPoint && (
+              <iframe
+                ref={iframeRef}
+                key={initPoint}
+                src={initPoint}
+                title="Checkout Mercado Pago"
+                className="h-full w-full border-0 bg-white"
+                allow="payment *; publickey-credentials-get *; clipboard-write"
+                referrerPolicy="no-referrer-when-downgrade"
+                onLoad={handleIframeNavigation}
+              />
+            )}
+          </div>
+
+          <div className="shrink-0 space-y-2 border-t border-slate-200 bg-white px-4 py-3 sm:px-5">
+            {iframeBlockedHint && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Si no ves el formulario de pago, Mercado Pago puede estar bloqueando
+                el iframe en tu navegador. Usa una de las opciones de abajo.
+              </p>
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800"
+              >
+                <X className="h-3.5 w-3.5" />
+                Cerrar y seguir esperando el pago
+              </button>
+              <div className="flex flex-wrap gap-2">
+                {initPoint && (
+                  <a
+                    href={initPoint}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Abrir en pestaña nueva
+                  </a>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="h-9"
+                  onClick={openInSameTab}
+                  disabled={!initPoint}
+                >
+                  Continuar en esta pestaña
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

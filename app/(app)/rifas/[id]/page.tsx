@@ -6,6 +6,7 @@ import {
     MapPin,
     Share2,
     ShieldCheck,
+    Trophy,
     Users
 } from "lucide-react";
 import Link from "next/link";
@@ -202,12 +203,28 @@ export default async function RifaDetailPage({
           <div
             className={cn(
               "relative aspect-[4/3] md:aspect-[16/9] rounded-2xl overflow-hidden shadow-[0_16px_50px_-18px_rgba(15,23,42,0.18)]",
-              rifa.is_solidarity
-                ? "bg-gradient-to-br from-brand-cyan via-cyan-500 to-brand-rose"
-                : "bg-gradient-to-br from-brand-rose via-pink-500 to-brand-violet"
+              rifa.prize_image_url
+                ? "bg-slate-900"
+                : rifa.is_solidarity
+                  ? "bg-gradient-to-br from-brand-cyan via-cyan-500 to-brand-rose"
+                  : "bg-gradient-to-br from-brand-rose via-pink-500 to-brand-violet"
             )}
           >
-            <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] [background-size:18px_18px]" />
+            {rifa.prize_image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={rifa.prize_image_url}
+                alt={rifa.prize_name || rifa.title}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] [background-size:18px_18px]" />
+            )}
+
+            {rifa.prize_image_url && (
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/15 to-slate-950/25" />
+            )}
+
             <div className="absolute top-3 left-3 sm:top-4 sm:left-4 flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <Badge
                 variant={rifa.is_solidarity ? "solidarity" : "prize"}
@@ -243,18 +260,19 @@ export default async function RifaDetailPage({
               >
                 <Share2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" /> Compartir
               </Button>
-              {currentUserId && (
-                <Badge variant="outline" className="!bg-white/20 !text-white !border-white/30 backdrop-blur !text-[10px] sm:!text-xs py-0">
-                  {mineNumbers.size > 0 ? `🎟 ${mineNumbers.size}` : "Sesión ok"}
-                </Badge>
-              )}
             </div>
 
-            <div className="absolute inset-0 grid place-items-center">
-              <div className="h-24 w-24 sm:h-32 sm:w-32 md:h-40 md:w-40 rounded-[1.5rem] sm:rounded-[2rem] bg-white/20 backdrop-blur grid place-items-center text-5xl sm:text-6xl md:text-7xl shadow-2xl">
-                {rifa.is_solidarity ? "💝" : "🏆"}
+            {!rifa.prize_image_url && (
+              <div className="absolute inset-0 grid place-items-center">
+                <div className="h-24 w-24 sm:h-32 sm:w-32 md:h-40 md:w-40 rounded-[1.5rem] sm:rounded-[2rem] bg-white/20 backdrop-blur grid place-items-center shadow-2xl">
+                  {rifa.is_solidarity ? (
+                    <Heart className="h-12 w-12 sm:h-16 sm:w-16 text-white" strokeWidth={2} />
+                  ) : (
+                    <Trophy className="h-12 w-12 sm:h-16 sm:w-16 text-white" strokeWidth={2} />
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="absolute bottom-3 left-3 right-3 sm:bottom-5 sm:left-5 sm:right-5 flex items-end justify-between gap-3">
               <div className="text-white drop-shadow-sm">

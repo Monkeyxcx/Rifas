@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { cn, formatCurrency, formatRelativeTime, padRaffleNumber } from "@/lib/utils";
+import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 import type { Rifa, RifaStats } from "@/lib/types";
 
 type RifaCardProps = {
@@ -45,19 +45,6 @@ export function RifaCard({ rifa, stats, className }: RifaCardProps) {
   const pct = Math.min(
     100,
     Math.round((sold / Math.max(1, total_numbers)) * 100)
-  );
-
-  function deterministicNumberFromId(str: string, max: number): number {
-    let h = 0;
-    for (let i = 0; i < str.length; i++) {
-      h = (h << 5) - h + str.charCodeAt(i);
-      h |= 0;
-    }
-    const n = Math.abs(h) % Math.max(1, max);
-    return n;
-  }
-  const sampleWinningNumber = padRaffleNumber(
-    deterministicNumberFromId(id, Math.max(10, total_numbers))
   );
 
   const endsAtDisplay = ends_at ? formatRelativeTime(ends_at) : null;
@@ -203,17 +190,19 @@ export function RifaCard({ rifa, stats, className }: RifaCardProps) {
           </div>
         </div>
 
-        {/* Posible ganador de ejemplo (placeholder UI) */}
         <div className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">
-          <div className="grid h-9 w-12 place-items-center rounded-lg bg-white shadow-sm font-numbers font-black text-lg tracking-wider text-slate-900 ring-1 ring-slate-200">
-            {sampleWinningNumber}
+          <div className="grid h-9 min-w-12 place-items-center rounded-lg bg-white px-2 shadow-sm font-numbers font-black text-lg tracking-wider text-slate-900 ring-1 ring-slate-200">
+            {available_numbers}
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">
               Números disponibles
             </div>
             <div className="text-xs text-slate-700 truncate">
-              Elige los tuyos: <span className="font-semibold text-slate-900">{available_numbers}</span> restantes
+              <span className="font-semibold text-slate-900">{available_numbers}</span>{" "}
+              disponibles ·{" "}
+              <span className="font-semibold text-slate-900">{sold}</span> vendidos
+              {" "}de {total_numbers}
             </div>
           </div>
           <Users className="h-4 w-4 text-slate-400 shrink-0" />

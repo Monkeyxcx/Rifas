@@ -294,15 +294,6 @@ export default function RifaDetailActions(props: Props) {
               </>
             )}
           </Button>
-
-          <div className="grid grid-cols-2 gap-2 pt-0.5">
-            <div className="text-[10px] sm:text-[11px] text-slate-400 flex items-center gap-1.5">
-              🔒 SSL
-            </div>
-            <div className="text-[10px] sm:text-[11px] text-slate-400 flex items-center gap-1.5 justify-end">
-              ⏱ Bloqueo 15 min
-            </div>
-          </div>
         </CardContent>
       </Card>
     </aside>

@@ -412,10 +412,7 @@ export default async function CheckoutPage({
                 )}
               </div>
               <h1 className="mt-2 sm:mt-3 font-display text-xl sm:text-3xl font-black tracking-tight text-slate-900 lg:text-4xl leading-tight min-w-0 break-words">
-                Completa tu pago
-                <span className="block sm:inline bg-gradient-to-r from-brand-rose via-brand-violet to-brand-cyan bg-clip-text text-transparent">
-                  {" "}· {rifa.prize_name.length > 26 && typeof window === "undefined" ? rifa.prize_name.slice(0, 24) + "…" : rifa.prize_name}
-                </span>
+                Completa tu pago · {rifa.prize_name}
               </h1>
               <p className="mt-1 sm:mt-1.5 max-w-2xl text-[11px] sm:text-xs sm:text-sm text-slate-500 leading-relaxed">
                 Tus números están bloqueados 15 min. Paga antes de que termine el plazo y son tuyos al 100%. ¡Suerte! 🍀
@@ -435,56 +432,45 @@ export default async function CheckoutPage({
           <div className="space-y-4 sm:space-y-5 sm:space-y-6 lg:col-span-3 min-w-0 w-full">
             {/* CARD 1 · INFO RIFA */}
             <Card className="overflow-hidden border-slate-200 shadow-sm w-full min-w-0">
-              <div
-                className={
-                  rifa.is_solidarity
-                    ? "relative h-28 sm:h-32 sm:h-40 md:h-44 bg-gradient-to-br from-brand-cyan via-emerald-400 to-brand-rose px-3 sm:px-4 sm:p-5 md:p-6 pt-3 sm:pt-4 pb-3 sm:pb-4 text-white"
-                    : "relative h-28 sm:h-32 sm:h-40 md:h-44 bg-gradient-to-br from-brand-rose via-brand-violet to-brand-cyan px-3 sm:px-4 sm:p-5 md:p-6 pt-3 sm:pt-4 pb-3 sm:pb-4 text-white"
-                }
-              >
-                <div
-                  className="pointer-events-none absolute inset-0 opacity-25 -left-2 -right-2"
-                  style={{
-                    backgroundImage:
-                      "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.9) 1px, transparent 0)",
-                    backgroundSize: "14px 14px"
-                  }}
-                />
-                <div className="relative flex h-full flex-col justify-between gap-1.5">
-                  <div className="flex items-start justify-between gap-1.5 sm:gap-2">
-                    <Badge
-                      variant={rifa.is_solidarity ? "solidarity" : "prize"}
-                      className="!bg-white !bg-opacity-95 !border-0 !text-[10px] sm:!text-xs py-0 shrink-0"
-                    >
-                      {rifa.is_solidarity ? (
-                        <>
-                          <HeartHandshake className="mr-1 h-3 w-3" /> Solidaria
-                        </>
-                      ) : (
-                        <>
-                          <Trophy className="mr-1 h-3 w-3" /> Premio
-                        </>
-                      )}
-                    </Badge>
-                    <Badge variant="active" className="!bg-white/95 !text-slate-800 !border-0 shadow !text-[10px] sm:!text-xs py-0 shrink-0">
-                      <Zap className="mr-1 h-3 w-3" /> {soldPercentage}%
-                    </Badge>
-                  </div>
+              <div className="relative border-b border-slate-100 bg-slate-50 px-3 sm:px-4 sm:px-6 py-4 sm:py-5">
+                <div className="flex items-start justify-between gap-2">
+                  <Badge
+                    variant={rifa.is_solidarity ? "solidarity" : "outline"}
+                    className="border-slate-200 text-[10px] sm:text-xs py-0 shrink-0"
+                  >
+                    {rifa.is_solidarity ? (
+                      <>
+                        <HeartHandshake className="mr-1 h-3 w-3" /> Solidaria
+                      </>
+                    ) : (
+                      <>
+                        <Trophy className="mr-1 h-3 w-3" /> Premio
+                      </>
+                    )}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="border-slate-200 text-slate-700 text-[10px] sm:text-xs py-0 shrink-0"
+                  >
+                    <Zap className="mr-1 h-3 w-3" /> {soldPercentage}%
+                  </Badge>
+                </div>
 
-                  <div className="space-y-0.5">
-                    <p className="text-[9px] sm:text-[10px] sm:text-xs font-semibold uppercase tracking-wider opacity-90">
-                      Premio
-                    </p>
-                    <h3 className="font-numbers text-xl sm:text-2xl sm:text-3xl font-black tabular-nums tracking-tight drop-shadow-sm">
-                      {formatCurrency(rifa.prize_value, currency)}
-                    </h3>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] sm:text-[11px] sm:text-xs font-medium opacity-95">
-                      <MapPin className="h-3 w-3" />
-                      {country}
-                      <span className="opacity-60 hidden sm:inline">·</span>
-                      <CalendarDays className="h-3 w-3 hidden sm:inline" />
-                      <span className="hidden sm:inline whitespace-nowrap overflow-hidden text-ellipsis">{rifa.ends_at ? endsDate?.toLocaleDateString("es-CO") : "—"}</span>
-                    </div>
+                <div className="mt-3 space-y-0.5">
+                  <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Valor del premio
+                  </p>
+                  <h3 className="font-numbers text-xl sm:text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-slate-900">
+                    {formatCurrency(rifa.prize_value, currency)}
+                  </h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] sm:text-xs font-medium text-slate-500">
+                    <MapPin className="h-3 w-3" />
+                    {country}
+                    <span className="text-slate-300 hidden sm:inline">·</span>
+                    <CalendarDays className="h-3 w-3 hidden sm:inline" />
+                    <span className="hidden sm:inline whitespace-nowrap overflow-hidden text-ellipsis">
+                      {rifa.ends_at ? endsDate?.toLocaleDateString("es-CO") : "—"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -619,23 +605,16 @@ export default async function CheckoutPage({
             <div className="lg:sticky lg:top-[152px] space-y-3.5 sm:space-y-5 w-full min-w-0">
               {/* CARD PAGO SEGURO */}
               <Card className="overflow-hidden border-slate-200 shadow-lg w-full min-w-0">
-                <div className="relative bg-gradient-to-br from-brand-gold via-rose-500 to-brand-violet px-3 sm:p-5 py-3 sm:py-5 text-white w-full min-w-0">
-                  <div
-                    className="pointer-events-none absolute inset-0 opacity-20 -left-2 -right-2"
-                    style={{
-                      backgroundImage:
-                        "radial-gradient(circle at 20% 0%, rgba(255,255,255,0.8) 0, transparent 40%), radial-gradient(circle at 100% 100%, rgba(255,255,255,0.6) 0, transparent 40%)"
-                    }}
-                  />
-                  <div className="relative flex items-center gap-2 sm:gap-3 w-full min-w-0">
-                    <div className="grid h-9 w-9 sm:h-12 sm:w-12 shrink-0 place-items-center rounded-lg sm:rounded-2xl bg-white/15 backdrop-blur ring-1 ring-white/40">
-                      <ShieldCheck className="h-4 w-4 sm:h-6 sm:w-6" strokeWidth={2.3} />
+                <div className="border-b border-slate-100 bg-white px-3 sm:px-5 py-3.5 sm:py-4 w-full min-w-0">
+                  <div className="flex items-center gap-2.5 sm:gap-3 w-full min-w-0">
+                    <div className="grid h-9 w-9 sm:h-10 sm:w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700">
+                      <ShieldCheck className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={2.2} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[9px] sm:text-xs font-semibold uppercase tracking-widest opacity-90 truncate">
+                      <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
                         Pago manual al creador
                       </p>
-                      <h3 className="font-display text-sm sm:text-xl font-black leading-tight truncate">
+                      <h3 className="font-display text-sm sm:text-lg font-extrabold leading-tight text-slate-900 truncate">
                         Completa tu pago
                       </h3>
                     </div>
@@ -664,35 +643,6 @@ export default async function CheckoutPage({
                         </span>
                         <span className="font-semibold text-slate-800 text-right break-words min-w-0 flex-1 whitespace-nowrap text-ellipsis overflow-hidden">{payerPhone || "Sin registrar"}</span>
                       </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* MÉTODOS HABILITADOS */}
-                  <div className="space-y-2 sm:space-y-2.5 sm:space-y-3 w-full min-w-0">
-                    <h4 className="text-[11px] sm:text-xs sm:text-sm font-bold text-slate-900">
-                      Métodos habilitados
-                    </h4>
-                    <div className="grid gap-2 sm:grid-cols-3 w-full min-w-0">
-                      {manualPaymentOptions.map((method) => (
-                        <div
-                          key={method}
-                          className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3 text-slate-700"
-                        >
-                          <div className="flex items-center gap-2 text-sm font-bold">
-                            {method === "nequi" ? (
-                              <Smartphone className="h-4 w-4 text-cyan-600" />
-                            ) : (
-                              <Landmark className="h-4 w-4 text-emerald-600" />
-                            )}
-                            {getManualPaymentLabel(method)}
-                          </div>
-                          <div className="mt-1 text-[11px] text-slate-500">
-                            Pago directo al creador con validación manual del comprobante.
-                          </div>
-                        </div>
-                      ))}
                     </div>
                   </div>
 

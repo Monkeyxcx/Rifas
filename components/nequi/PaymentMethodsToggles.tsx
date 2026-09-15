@@ -165,8 +165,8 @@ export default function PaymentMethodsToggles({
               Métodos manuales de cobro
             </CardTitle>
             <CardDescription>
-              El dinero de la rifa lo recibe directamente el creador. Mercado Pago queda
-              reservado solo para pagar la comisión de la plataforma.
+              El dinero de la rifa lo recibes tú directamente por Nequi o Bancolombia.
+              Activa los métodos que quieras ofrecer a tus participantes.
             </CardDescription>
           </div>
         </div>

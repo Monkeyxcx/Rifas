@@ -1,7 +1,6 @@
 "use client";
 
 import { RifaCard } from "@/components/rifas/RifaCard";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -37,7 +36,6 @@ type Props = {
   initialSort: SortKey;
   initialMaxPrice: number;
   maxPriceAvailable: number;
-  totalRifas: number;
   totalSolidarity: number;
   totalRaised: number;
   totalNumbersSold: number;
@@ -185,15 +183,10 @@ export default function RifaListFiltersClient(props: Props) {
               "radial-gradient(circle at 10% 20%, hsla(348,97%,62%,0.16) 0, transparent 45%)"
           }}
         />
-        <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 py-8 sm:py-10 md:py-14 relative overflow-hidden">
+        <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 py-8 sm:py-10 md:py-14 relative">
           <div className="flex flex-col gap-3 sm:gap-4 md:gap-6 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-              <div className="min-w-0">
-                <Badge variant="active" className="mb-3 gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  {props.totalRifas} rifa{props.totalRifas === 1 ? "" : "s"} activa
-                  {props.totalRifas === 1 ? "" : "s"} en este momento
-                </Badge>
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 min-w-0">
+              <div className="min-w-0 flex-1">
                 <h1 className="font-display font-black tracking-tight text-2xl sm:text-3xl md:text-4xl leading-tight min-w-0 break-words">
                   Explora y participa en rifas de{" "}
                   <span className="bg-gradient-to-r from-brand-rose via-fuchsia-500 to-brand-violet bg-clip-text text-transparent">
@@ -206,19 +199,19 @@ export default function RifaListFiltersClient(props: Props) {
                   precio de número que prefieras. Pago seguro con Mercado Pago.
                 </p>
               </div>
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 text-xs w-full sm:w-auto min-w-0">
-                <div className="rounded-xl bg-white/80 backdrop-blur px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm border border-slate-200/80 flex-1 sm:min-w-[140px]">
-                  <div className="inline-flex items-center gap-1 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
-                    <Trophy className="h-3.5 w-3.5 text-brand-gold" />
+              <div className="flex flex-row gap-2 sm:gap-3 text-xs w-full lg:w-auto shrink-0">
+                <div className="rounded-xl bg-white/80 backdrop-blur px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm border border-slate-200/80 flex-1 lg:flex-none min-w-0">
+                  <div className="inline-flex items-center gap-1 text-slate-500 uppercase text-[10px] tracking-wider font-bold whitespace-nowrap">
+                    <Trophy className="h-3.5 w-3.5 shrink-0 text-brand-gold" />
                     Recaudado
                   </div>
                   <div className="font-display font-extrabold text-slate-900 text-base sm:text-lg truncate">
                     {formatCurrency(props.totalRaised)}
                   </div>
                 </div>
-                <div className="rounded-xl bg-white/80 backdrop-blur px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm border border-slate-200/80 flex-1 sm:min-w-[140px]">
-                  <div className="inline-flex items-center gap-1 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
-                    <Ticket className="h-3.5 w-3.5 text-brand-cyan" />
+                <div className="rounded-xl bg-white/80 backdrop-blur px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm border border-slate-200/80 flex-1 lg:flex-none min-w-0">
+                  <div className="inline-flex items-center gap-1 text-slate-500 uppercase text-[10px] tracking-wider font-bold whitespace-nowrap">
+                    <Ticket className="h-3.5 w-3.5 shrink-0 text-brand-cyan" />
                     Nros vendidos
                   </div>
                   <div className="font-display font-extrabold text-slate-900 text-base sm:text-lg">
@@ -228,7 +221,7 @@ export default function RifaListFiltersClient(props: Props) {
               </div>
             </div>
 
-            <div className="relative mt-1 max-w-3xl group w-full min-w-0">
+            <div className="relative mt-1 mx-auto max-w-3xl group w-full min-w-0">
               <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-4.5 sm:w-4.5 text-slate-400 group-focus-within:text-brand-rose transition-colors" />
               <Input
                 value={query}

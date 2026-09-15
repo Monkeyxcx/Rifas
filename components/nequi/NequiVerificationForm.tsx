@@ -18,7 +18,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Upload,
-  Phone,
   IdCard,
   FileText,
   QrCode,
@@ -178,23 +177,17 @@ export default function NequiVerificationForm({ userId, latest }: Props) {
 
   return (
     <div className="space-y-5">
-      <Card className="border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-rose-50/40 shadow-sm">
+      <Card className="border-slate-200 shadow-sm">
         <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div className="flex items-start gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-brand-rose text-white">
-                <Phone className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle className="font-display text-lg">
-                  Cobros manuales del creador
-                </CardTitle>
-                <CardDescription className="text-sm">
-                  Configura Nequi o Bancolombia para recibir pagos directos de tus
-                  participantes. Un administrador valida tu identidad y tus soportes antes
-                  de habilitar estos cobros en tus rifas.
-                </CardDescription>
-              </div>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="font-display text-lg">
+                Cobros manuales del creador
+              </CardTitle>
+              <CardDescription className="text-sm">
+                Configura Nequi o Bancolombia para recibir pagos directos. Un administrador
+                valida tu identidad antes de habilitar estos cobros en tus rifas.
+              </CardDescription>
             </div>
             {statusBadge(latest?.status)}
           </div>
