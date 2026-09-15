@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Globe, Loader2, MapPin, NotebookPen, Save, ShieldCheck, Smartphone, Sparkles, UserRound } from "lucide-react";
+import { Check, Loader2, MapPin, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -90,12 +90,9 @@ export function ProfileSaveForm({ perfil, email }: Props) {
   };
 
   return (
-    <Card id="datos" className="border-slate-200 shadow-sm scroll-mt-24">
+    <Card className="border-slate-200 shadow-sm">
       <CardHeader className="pb-4">
         <div className="flex items-start gap-3">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-rose to-brand-violet text-white">
-            <UserRound className="h-5 w-5" strokeWidth={2.2} />
-          </div>
           <div className="flex-1">
             <CardTitle className="font-display text-lg">Datos personales</CardTitle>
             <CardDescription>
@@ -104,14 +101,14 @@ export function ProfileSaveForm({ perfil, email }: Props) {
           </div>
           <div className="hidden sm:flex items-center gap-2">
             {ok && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
                 <Check className="h-3.5 w-3.5" />
-                Cambios guardados
+                Guardado
               </span>
             )}
             <Button
               type="button"
-              className="!bg-gradient-to-r from-brand-rose to-brand-violet font-bold shadow-cta h-10 px-5 disabled:opacity-70"
+              className="h-10 bg-brand-rose px-5 font-semibold text-white hover:bg-brand-rose/90 disabled:opacity-70"
               onClick={onSave}
               disabled={!changed || saving}
             >
@@ -128,8 +125,7 @@ export function ProfileSaveForm({ perfil, email }: Props) {
       <CardContent className="space-y-5">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="pf-fullname" className="flex items-center gap-1.5 font-bold text-slate-700">
-              <Sparkles className="h-3.5 w-3.5 text-brand-gold" />
+            <Label htmlFor="pf-fullname" className="font-semibold text-slate-700">
               Nombre público completo
             </Label>
             <Input
@@ -137,12 +133,11 @@ export function ProfileSaveForm({ perfil, email }: Props) {
               value={form.full_name}
               onChange={(e) => handleChange("full_name", e.target.value)}
               placeholder="Ej: Alejandro Gómez Martínez"
-              className="h-11 !border-slate-200 focus-visible:!ring-brand-rose"
+              className="h-11 border-slate-200 focus-visible:ring-brand-rose"
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pf-display" className="flex items-center gap-1.5 font-bold text-slate-700">
-              <UserRound className="h-3.5 w-3.5 text-brand-violet" />
+            <Label htmlFor="pf-display" className="font-semibold text-slate-700">
               Nickname / nombre a mostrar
             </Label>
             <Input
@@ -150,14 +145,13 @@ export function ProfileSaveForm({ perfil, email }: Props) {
               value={form.display_name}
               onChange={(e) => handleChange("display_name", e.target.value)}
               placeholder="Ej: AlejoGómez88"
-              className="h-11 !border-slate-200 focus-visible:!ring-brand-violet"
+              className="h-11 border-slate-200 focus-visible:ring-brand-rose"
             />
           </div>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-1.5 md:col-span-1">
-            <Label htmlFor="pf-email" className="flex items-center gap-1.5 font-bold text-slate-700">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+            <Label htmlFor="pf-email" className="font-semibold text-slate-700">
               Email (inmutable)
             </Label>
             <Input
@@ -165,12 +159,11 @@ export function ProfileSaveForm({ perfil, email }: Props) {
               readOnly
               disabled
               value={email}
-              className="h-11 !bg-slate-50 !border-slate-200 !text-slate-600 cursor-not-allowed select-none"
+              className="h-11 cursor-not-allowed select-none border-slate-200 bg-slate-50 text-slate-600"
             />
           </div>
           <div className="space-y-1.5 md:col-span-1">
-            <Label htmlFor="pf-phone" className="flex items-center gap-1.5 font-bold text-slate-700">
-              <Smartphone className="h-3.5 w-3.5 text-brand-rose" />
+            <Label htmlFor="pf-phone" className="font-semibold text-slate-700">
               Teléfono móvil
             </Label>
             <Input
@@ -179,54 +172,52 @@ export function ProfileSaveForm({ perfil, email }: Props) {
               onChange={(e) => handleChange("phone", e.target.value)}
               placeholder="+57 300 123 4567"
               inputMode="tel"
-              className="h-11 !border-slate-200 focus-visible:!ring-brand-rose font-mono"
+              className="h-11 border-slate-200 font-mono focus-visible:ring-brand-rose"
             />
           </div>
           <div className="space-y-1.5 md:col-span-1">
-            <Label htmlFor="pf-country" className="flex items-center gap-1.5 font-bold text-slate-700">
-              <Globe className="h-3.5 w-3.5 text-brand-cyan" />
+            <Label htmlFor="pf-country" className="font-semibold text-slate-700">
               País / Región
             </Label>
             <div className="relative">
-              <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+              <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 id="pf-country"
                 value={form.country}
                 onChange={(e) => handleChange("country", e.target.value)}
                 placeholder="Colombia, Medellín…"
-                className="h-11 !pl-10 !border-slate-200 focus-visible:!ring-brand-cyan"
+                className="h-11 border-slate-200 pl-10 focus-visible:ring-brand-rose"
               />
             </div>
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="pf-bio" className="flex items-center gap-1.5 font-bold text-slate-700">
-            <NotebookPen className="h-3.5 w-3.5 text-brand-violet" />
+          <Label htmlFor="pf-bio" className="font-semibold text-slate-700">
             Biografía corta
           </Label>
           <Textarea
             id="pf-bio"
             value={form.bio}
             onChange={(e) => handleChange("bio", e.target.value)}
-            placeholder="Cuéntanos quién eres, te gusta el emprendimiento, las rifas solidarias, etc. (máx 200 chars)"
+            placeholder="Cuéntanos quién eres (máx. 200 caracteres)"
             maxLength={200}
-            className="!border-slate-200 focus-visible:!ring-brand-violet min-h-[110px] resize-none"
+            className="min-h-[110px] resize-none border-slate-200 focus-visible:ring-brand-rose"
           />
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-500">Esta bio aparece en tu perfil y en las rifas que crees.</span>
-            <span className="font-bold tabular-nums text-slate-500">{form.bio.length}/200</span>
+            <span className="text-slate-500">Aparece en tu perfil y en las rifas que crees.</span>
+            <span className="tabular-nums font-semibold text-slate-500">{form.bio.length}/200</span>
           </div>
         </div>
-        <div className="sm:hidden pt-2">
+        <div className="pt-2 sm:hidden">
           {ok && (
-            <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">
+            <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
               <Check className="h-3.5 w-3.5" />
-              Cambios guardados correctamente
+              Guardado
             </div>
           )}
           <Button
             type="button"
-            className="w-full !bg-gradient-to-r from-brand-rose to-brand-violet font-bold shadow-cta h-11 disabled:opacity-70"
+            className="h-11 w-full bg-brand-rose font-semibold text-white hover:bg-brand-rose/90 disabled:opacity-70"
             onClick={onSave}
             disabled={!changed || saving}
           >
@@ -235,7 +226,7 @@ export function ProfileSaveForm({ perfil, email }: Props) {
             ) : (
               <Save className="mr-2 h-4 w-4" />
             )}
-            {saving ? "Guardando cambios…" : "Guardar cambios en el perfil"}
+            {saving ? "Guardando…" : "Guardar cambios"}
           </Button>
         </div>
       </CardContent>
