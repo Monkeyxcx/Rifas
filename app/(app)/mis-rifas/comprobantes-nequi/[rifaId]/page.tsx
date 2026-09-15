@@ -1,13 +1,11 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ReceiptText, ShieldAlert } from "lucide-react";
+import { ArrowLeft, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import VoucherReviewList from "@/components/nequi/VoucherReviewList";
 import type { NequiPayment } from "@/lib/types";
-import { getManualPaymentLabel } from "@/lib/manual-payments";
 
 export const dynamic = "force-dynamic";
 
@@ -68,18 +66,6 @@ export default async function RifaComprobantesPage({ params }: PageProps) {
     );
   }
 
-  // Comprobar métodos manuales activos
-  const { data: methods } = await sb
-    .from("rifa_payment_methods")
-    .select("accept_nequi, accept_bancolombia_qr, accept_bancolombia_transfer")
-    .eq("rifa_id", rifaId)
-    .maybeSingle();
-  const manualMethods = [
-    Boolean((methods as any)?.accept_nequi) ? "nequi" : null,
-    Boolean((methods as any)?.accept_bancolombia_qr) ? "bancolombia_qr" : null,
-    Boolean((methods as any)?.accept_bancolombia_transfer) ? "bancolombia_transfer" : null
-  ].filter(Boolean) as Array<"nequi" | "bancolombia_qr" | "bancolombia_transfer">;
-
   // Cargar lista de pagos manuales
   const { data: paymentsRows, error: pErr } = await sb
     .from("nequi_payments")
@@ -103,22 +89,6 @@ export default async function RifaComprobantesPage({ params }: PageProps) {
                 <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Volver a mis rifas
               </Link>
             </Button>
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <Badge className="!bg-emerald-500 !text-white !border-0 text-xs">
-                <ReceiptText className="mr-1 h-3 w-3" /> Comprobantes manuales
-              </Badge>
-              {manualMethods.length === 0 ? (
-                <Badge variant="outline" className="!border-amber-300 !text-amber-700 !bg-amber-50">
-                  Sin métodos manuales activos
-                </Badge>
-              ) : (
-                manualMethods.map((method) => (
-                  <Badge key={method} variant="outline" className="!border-slate-300 !bg-white !text-slate-700">
-                    {getManualPaymentLabel(method)}
-                  </Badge>
-                ))
-              )}
-            </div>
             <h1 className="mt-3 font-display font-black tracking-tight text-2xl lg:text-3xl text-slate-900 leading-tight">
               {rifa.title}
             </h1>
