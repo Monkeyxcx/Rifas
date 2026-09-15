@@ -1,42 +1,30 @@
 import Link from "next/link";
-import {
-  Ticket,
-  Gift,
-  Heart,
-  ShieldCheck,
-  Sparkles,
-  ArrowRight,
-  Users,
-  Clock,
-  Zap
-} from "lucide-react";
+import { ArrowRight, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { FeaturesCarousel } from "@/components/marketing/FeaturesCarousel";
+import { StepsCarousel } from "@/components/marketing/StepsCarousel";
 
 const FEATURES = [
   {
-    icon: Gift,
+    icon: "Gift" as const,
     title: "Premios increíbles",
     description:
       "Electrónica, viajes, vehículos, experiencias únicas y más. Cientos de rifas activas al mismo tiempo.",
-    color: "from-brand-gold to-brand-rose text-white",
     bg: "bg-gradient-premio"
   },
   {
-    icon: Heart,
+    icon: "Heart" as const,
     title: "Causas solidarias",
     description:
       "Apoya a comunidades, ONG y fundaciones. Cada número que compras se convierte en ayuda real y transparente.",
-    color: "from-brand-violet to-brand-cyan text-white",
     bg: "bg-gradient-solidario"
   },
   {
-    icon: ShieldCheck,
+    icon: "ShieldCheck" as const,
     title: "100% seguro y transparente",
     description:
       "Pagos vía Mercado Pago, números únicos por rifa y sorteos verificables con hash público y testigos.",
-    color: "from-brand-cyan to-brand-rose text-white",
     bg: "bg-gradient-cta"
   }
 ];
@@ -53,31 +41,31 @@ const STEPS = [
     n: "01",
     title: "Explora rifas",
     desc: "Busca por premio, causa solidaria o precio. Filtra hasta encontrar la tuya.",
-    icon: Sparkles
+    icon: "Sparkles" as const
   },
   {
     n: "02",
     title: "Elige tus números",
     desc: "Selecciona los números de la suerte (00-99). Elige 1, 10 o todos los que quieras.",
-    icon: Ticket
+    icon: "Ticket" as const
   },
   {
     n: "03",
     title: "Paga con Mercado Pago",
     desc: "Checkout seguro. Tarjeta, PIX, transferencia. Tu número se reserva al instante.",
-    icon: Zap
+    icon: "Zap" as const
   },
   {
     n: "04",
     title: "¡Suerte y gana!",
     desc: "Sorteo público y transparente. Si ganas te contactamos en 24h.",
-    icon: Gift
+    icon: "Gift" as const
   }
 ];
 
 export default function MarketingHomePage() {
   return (
-    <div className="flex-1 flex flex-col pb-28">
+    <div className="flex-1 flex flex-col pb-24 md:pb-28">
       {/* =====================================================
           HERO
           ===================================================== */}
@@ -89,27 +77,19 @@ export default function MarketingHomePage() {
           <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] gradient-hero opacity-30" />
         </div>
 
-        <div className="container max-w-content pt-16 md:pt-24 pb-16 md:pb-24">
+        <div className="container max-w-content pt-10 md:pt-24 pb-10 md:pb-24">
           <div className="mx-auto max-w-3xl text-center">
-            <Badge variant="solidarity" className="mb-6 animate-pulse-soft">
-              <Sparkles className="h-3.5 w-3.5" />
-              Beta abierta — ¡Regístrate gratis!
-            </Badge>
-
             <h1>
-              Gana premios increíbles.{" "}
-              <span className="bg-gradient-cta bg-clip-text text-transparent">
-                Apoya causas que importan.
-              </span>
+              Gana premios increíbles. Apoya causas que importan.
             </h1>
 
-            <p className="mt-6 text-lg md:text-xl text-slate-600 max-w-2xl mx-auto">
+            <p className="mt-4 md:mt-6 text-base md:text-xl text-slate-600 max-w-2xl mx-auto">
               <span className="font-semibold text-slate-900">RifasCenter</span>{" "}
               es el lugar donde la emoción del sorteo se une al poder de ayudar.
               <span className="text-brand-rose font-semibold"> Tu número, tu premio, tu causa.</span>
             </p>
 
-            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <div className="mt-7 md:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Button asChild variant="gradient" size="lg">
                 <Link href="/rifas">
                   Ver rifas activas
@@ -123,34 +103,19 @@ export default function MarketingHomePage() {
                 </Link>
               </Button>
             </div>
-
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-500">
-              <span className="inline-flex items-center gap-1.5">
-                <ShieldCheck className="h-4 w-4 text-success" />
-                Pagos protegidos Mercado Pago
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Users className="h-4 w-4 text-brand-violet" />
-                Sin costos de inscripción
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Clock className="h-4 w-4 text-brand-cyan" />
-                Sorteos en fecha y hora pública
-              </span>
-            </div>
           </div>
 
           {/* STATS */}
-          <div className="mx-auto mt-16 md:mt-24 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 max-w-5xl">
+          <div className="mx-auto mt-10 md:mt-24 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 max-w-5xl">
             {STATS.map((s) => (
               <div
                 key={s.label}
-                className="card-base !shadow-md text-center py-6 px-4"
+                className="card-base !shadow-md text-center py-4 md:py-6 px-3 md:px-4"
               >
-                <div className="font-display text-3xl md:text-4xl font-extrabold bg-gradient-cta bg-clip-text text-transparent">
+                <div className="font-display text-2xl md:text-4xl font-extrabold bg-gradient-cta bg-clip-text text-transparent">
                   {s.kpi}
                 </div>
-                <div className="mt-1.5 text-sm text-slate-500">{s.label}</div>
+                <div className="mt-1 text-xs md:text-sm text-slate-500">{s.label}</div>
               </div>
             ))}
           </div>
@@ -160,37 +125,17 @@ export default function MarketingHomePage() {
       {/* =====================================================
           FEATURES 3 COLUMNAS
           ===================================================== */}
-      <section className="container max-w-content py-16 md:py-24">
-        <div className="mx-auto max-w-2xl text-center mb-14">
-          <Badge variant="new" className="mb-4">
-            ¿Por qué RifasCenter?
-          </Badge>
-          <h2 className="!text-3xl md:!text-4xl">
+      <section className="container max-w-content py-10 md:py-24">
+        <div className="mx-auto max-w-2xl text-center mb-8 md:mb-14">
+          <h2 className="!text-2xl md:!text-4xl">
             Todo lo que necesitas, en un solo lugar.
           </h2>
-          <p className="mt-4 text-slate-600 text-lg">
+          <p className="mt-3 md:mt-4 text-slate-600 text-base md:text-lg">
             Simple para participar, potente para crear. Diseñado para que el foco esté en la emoción y la ayuda, no en los trámites.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {FEATURES.map((f) => {
-            const Icon = f.icon;
-            return (
-              <div key={f.title} className="card-base p-6 group">
-                <div
-                  className={`grid h-14 w-14 place-items-center rounded-xl ${f.bg} shadow-md mb-5`}
-                >
-                  <Icon className="h-7 w-7 text-white" strokeWidth={2.3} />
-                </div>
-                <h3>{f.title}</h3>
-                <p className="mt-3 text-slate-600 text-sm leading-relaxed">
-                  {f.description}
-                </p>
-              </div>
-            );
-          })}
-        </div>
+        <FeaturesCarousel features={FEATURES} />
       </section>
 
       <Separator className="container max-w-content !bg-slate-200" />
@@ -198,50 +143,21 @@ export default function MarketingHomePage() {
       {/* =====================================================
           CÓMO FUNCIONA — 4 PASOS
           ===================================================== */}
-      <section className="container max-w-content py-16 md:py-24">
-        <div className="mx-auto max-w-2xl text-center mb-14">
-          <Badge variant="outline" className="mb-4">
-            ¿Cómo funciona?
-          </Badge>
-          <h2 className="!text-3xl md:!text-4xl">
+      <section className="container max-w-content py-10 md:py-24">
+        <div className="mx-auto max-w-2xl text-center mb-8 md:mb-14">
+          <h2 className="!text-2xl md:!text-4xl">
             Participa en 4 pasos, en menos de 2 minutos.
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {STEPS.map((s, i) => {
-            const Icon = s.icon;
-            return (
-              <div
-                key={s.n}
-                className="relative card-base p-6 overflow-hidden"
-              >
-                <div className="absolute -right-4 -top-6 font-display font-extrabold text-[120px] leading-none text-slate-100 select-none">
-                  {s.n}
-                </div>
-                <div className="relative">
-                  <div className="grid h-11 w-11 place-items-center rounded-lg bg-slate-100 text-brand-rose mb-4">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="!text-lg">{s.title}</h3>
-                  <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                    {s.desc}
-                  </p>
-                  {i < STEPS.length - 1 && (
-                    <ArrowRight className="hidden md:block absolute top-14 -right-10 h-6 w-6 text-slate-300" />
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <StepsCarousel steps={STEPS} />
       </section>
 
       {/* =====================================================
           CTA FINAL
           ===================================================== */}
-      <section className="container max-w-content pb-20">
-        <div className="relative overflow-hidden rounded-3xl gradient-hero p-8 md:p-14 text-center shadow-xl">
+      <section className="container max-w-content pt-2 md:pt-0 pb-12 md:pb-20">
+        <div className="relative overflow-hidden rounded-2xl md:rounded-3xl gradient-hero p-6 md:p-14 text-center shadow-xl">
           <div
             aria-hidden
             className="absolute inset-0 opacity-20"
@@ -252,17 +168,14 @@ export default function MarketingHomePage() {
             }}
           />
           <div className="relative">
-            <Badge className="bg-white/20 text-white backdrop-blur !border !border-white/30 mb-6">
-              ✨ Sin costo para empezar
-            </Badge>
-            <h2 className="!text-white !text-3xl md:!text-5xl">
+            <h2 className="text-solid !text-white !text-2xl md:!text-5xl">
               ¿Listo para ganar y ayudar?
             </h2>
-            <p className="mx-auto mt-5 max-w-xl text-white/85 text-lg">
+            <p className="mx-auto mt-3 md:mt-5 max-w-xl text-white/85 text-base md:text-lg">
               Crea tu cuenta gratis y empieza a participar en rifas de premios o a
               recaudar fondos por la causa que te importa.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <div className="mt-6 md:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Button asChild size="lg" className="bg-white text-brand-rose hover:bg-rose-50">
                 <Link href="/rifas">
                   Explorar rifas ahora
