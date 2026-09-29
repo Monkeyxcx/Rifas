@@ -1,7 +1,8 @@
+import { syncCreatorFeeStateForRifa } from "@/lib/creator-fees";
 import {
-  isTesting,
-  mpPayment,
-  verifyWebhookSignature
+    isTesting,
+    mpPayment,
+    verifyWebhookSignature
 } from "@/lib/mercadopago";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { PagoStatus, ReservaStatus } from "@/lib/types";
@@ -64,6 +65,93 @@ function generateUUID(): string {
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
+}
+
+async function handleCreatorFeePayment(params: {
+  payment: MPPayment;
+  externalReference: string;
+  status: PagoStatus;
+}) {
+  const { payment, externalReference, status } = params;
+  const rifaId = payment.metadata?.rifa_id ?? null;
+  const creatorId = payment.metadata?.creator_id ?? null;
+
+  if (!rifaId) {
+    return NextResponse.json(
+      { ok: true, received: true, creator_fee: true, warning: "rifa_id faltante" },
+      { status: 200 }
+    );
+  }
+
+  const sb = createServiceClient();
+  const feeState = await syncCreatorFeeStateForRifa(sb, rifaId);
+  if (!feeState) {
+    return NextResponse.json(
+      { ok: true, received: true, creator_fee: true, warning: "rifa no encontrada" },
+      { status: 200 }
+    );
+  }
+
+  const FINAL_APPROVED = new Set(["approved"]);
+  const FINAL_REJECTED = new Set([
+    "rejected",
+    "cancelled",
+    "charged_back",
+    "refunded",
+    "expired"
+  ]);
+
+  if (FINAL_APPROVED.has(status as string)) {
+    await (sb.from("creator_fee_charges") as any)
+      .update({
+        status: "approved",
+        mercado_pago_payment_id: String(payment.id ?? ""),
+        external_reference: externalReference || null,
+        paid_at: payment.date_approved ?? new Date().toISOString(),
+        paid_tickets_count: feeState.paid_tickets_count
+      })
+      .eq("rifa_id", rifaId);
+
+    await (sb.from("notifications") as any).insert({
+      user_id: creatorId ?? feeState.creator_id,
+      rifa_id: rifaId,
+      type: "creator_fee_paid",
+      title: "Comisión del 3% pagada",
+      message: `La comisión de tu rifa ya fue aprobada. Las ventas continúan habilitadas normalmente.`,
+      action_url: "/mis-rifas/creadas"
+    });
+
+    return NextResponse.json(
+      {
+        ok: true,
+        received: true,
+        creator_fee: true,
+        status: "approved",
+        rifa_id: rifaId
+      },
+      { status: 200 }
+    );
+  }
+
+  if (FINAL_REJECTED.has((status as string).toLowerCase())) {
+    await (sb.from("creator_fee_charges") as any)
+      .update({
+        status: "pending",
+        external_reference: externalReference || null
+      })
+      .eq("rifa_id", rifaId);
+  }
+
+  return NextResponse.json(
+    {
+      ok: true,
+      received: true,
+      creator_fee: true,
+      status,
+      rifa_id: rifaId
+    },
+    { status: 200 }
+  );
 }
 
 // =======================================================================
@@ -257,9 +345,17 @@ export async function POST(req: NextRequest) {
   const payerEmail = payment.payer?.email ?? null;
   const totalAmount = payment.transaction_amount ?? 0;
   const feeAmount =
-    payment.fee_details?.reduce((acc, f) => acc + (f.amount ?? 0), 0) ??
-    Math.round(totalAmount * 0.03);
+    payment.fee_details?.reduce((acc, f) => acc + (f.amount ?? 0), 0) ?? 0;
   const netAmount = payment.net_received_amount ?? totalAmount - feeAmount;
+  const paymentPurpose = payment.metadata?.payment_purpose ?? "ticket_purchase";
+
+  if (paymentPurpose === "creator_fee") {
+    return handleCreatorFeePayment({
+      payment,
+      externalReference,
+      status
+    });
+  }
 
   // ==============================================
   // B#26: Variables trazabilidad side-effects (scope for final response JSON)
@@ -452,6 +548,7 @@ export async function POST(req: NextRequest) {
                   created_at: nowIso
                 };
                 await q(sb.from("notifications").insert(notiRow));
+                await syncCreatorFeeStateForRifa(sb, rifaIdRaw).catch(() => null);
                 console.log(
                   `[mercadopago/webhook] side-effects OK pago id=${payment.id} status=approved pagos.pago_id=${pagoId}`
                 );

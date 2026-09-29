@@ -1,10 +1,9 @@
 import PaymentMethodsToggles from "@/components/nequi/PaymentMethodsToggles";
 import CreatorForm from "@/components/rifas/CreatorForm";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-import type { RifaPaymentMethods } from "@/lib/types";
-import { AlertTriangle, Edit3, Lock, Sparkles } from "lucide-react";
+import type { RifaPaymentMethods, UserNequiVerification } from "@/lib/types";
+import { AlertTriangle, Lock } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -32,16 +31,18 @@ export default async function CrearRifaPage({ searchParams }: PageProps) {
   } = await sb.auth.getUser();
   if (uErr || !user) redirect("/auth?redirectTo=%2Frifas%2Fcrear");
 
-  // Nequi verified?
-  let nequiVerified = false;
+  // Cobros manuales aprobados
+  let manualVerified = false;
+  let latestVerification: UserNequiVerification | null = null;
   const { data: nequiRows, error: nequiErr } = await sb
     .from("user_nequi_verifications")
-    .select("status")
+    .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(1);
   if (!nequiErr && nequiRows?.length) {
-    nequiVerified = (nequiRows[0] as any).status === "approved";
+    latestVerification = nequiRows[0] as UserNequiVerification;
+    manualVerified = latestVerification.status === "approved";
   }
 
   // Cargar methods actuales si editing
@@ -57,14 +58,14 @@ export default async function CrearRifaPage({ searchParams }: PageProps) {
 
   return (
     <div className="relative">
-      <div className="relative overflow-hidden border-b border-slate-200/80 bg-gradient-to-br from-brand-rose/10 via-white to-brand-violet/10">
-        <div className="pointer-events-none absolute inset-0 opacity-[0.35] [background-image:radial-gradient(circle_at_1px_1px,rgb(255_27_81_/_0.15)_1px,transparent_0)] [background-size:22px_22px]" />
+      <div className="relative overflow-hidden border-b border-slate-200/80 bg-gradient-to-br from-brand-rose/10 via-white to-brand-violet/10 dark:border-slate-800 dark:from-brand-rose/20 dark:via-slate-950 dark:to-brand-violet/20">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.35] [background-image:radial-gradient(circle_at_1px_1px,rgb(255_27_81_/_0.15)_1px,transparent_0)] [background-size:22px_22px] dark:opacity-20" />
         <div className="container relative max-w-content py-10">
           <nav className="flex items-center gap-2 text-xs text-slate-500">
             <Link href="/rifas" className="hover:text-brand-rose transition">
               Rifas activas
             </Link>
-            <span className="text-slate-300">/</span>
+            <span className="text-slate-300 dark:text-slate-600">/</span>
             {isEditing ? (
               <>
                 <Link
@@ -73,7 +74,7 @@ export default async function CrearRifaPage({ searchParams }: PageProps) {
                 >
                   Mis rifas creadas
                 </Link>
-                <span className="text-slate-300">/</span>
+                <span className="text-slate-300 dark:text-slate-600">/</span>
                 <span className="text-slate-800 font-medium">Editar rifa</span>
               </>
             ) : (
@@ -81,32 +82,9 @@ export default async function CrearRifaPage({ searchParams }: PageProps) {
             )}
           </nav>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            {isEditing ? (
-              <Badge
-                variant="outline"
-                className="!border-violet-200 !bg-white/70 !text-brand-violet hover:!bg-white"
-              >
-                <Edit3 className="h-3 w-3 mr-1.5" />
-                Modo edición · Modifica tu rifa
-              </Badge>
-            ) : (
-              <Badge
-                variant="outline"
-                className="!border-rose-200 !bg-white/70 !text-brand-rose hover:!bg-white"
-              >
-                <Sparkles className="h-3 w-3 mr-1.5" />
-                Beta · Crea tu primera rifa ¡gratis!
-              </Badge>
-            )}
-            <Badge variant="secondary" className="!bg-slate-100 !text-slate-600">
-              ⚡ 4 pasos · ~2 minutos
-            </Badge>
-          </div>
-
           {isEditing ? (
             <>
-              <h1 className="mt-4 font-display font-black text-3xl md:text-4xl text-slate-900 leading-[1.05] max-w-3xl">
+              <h1 className="text-solid font-display font-black text-3xl md:text-4xl text-slate-900 leading-[1.05] max-w-3xl">
                 Edita tu rifa y{" "}
                 <span className="bg-gradient-to-r from-brand-violet to-brand-cyan bg-clip-text text-transparent">
                   mejora sus chances
@@ -120,7 +98,7 @@ export default async function CrearRifaPage({ searchParams }: PageProps) {
             </>
           ) : (
             <>
-              <h1 className="mt-4 font-display font-black text-3xl md:text-4xl text-slate-900 leading-[1.05] max-w-3xl">
+              <h1 className="text-solid font-display font-black text-3xl md:text-4xl text-slate-900 leading-[1.05] max-w-3xl">
                 Crea una rifa para un{" "}
                 <span className="bg-gradient-to-r from-brand-rose to-brand-violet bg-clip-text text-transparent">
                   premio increíble
@@ -132,31 +110,12 @@ export default async function CrearRifaPage({ searchParams }: PageProps) {
               </h1>
               <p className="mt-3 max-w-2xl text-slate-600 text-sm md:text-base leading-relaxed">
                 Tú eliges el premio, cuántos números (entre 10 y 100), cuánto cuesta cada
-                uno y cuándo se sortea. Nosotros nos encargamos de pagos seguros con
-                Mercado Pago, transparencia y anti-doble-reserva.
+                uno y cuándo se sortea. Tus participantes te pagan directo por Nequi o
+                Bancolombia, y la plataforma usa Mercado Pago solo para cobrar la comisión
+                del 3% al creador cuando la rifa llega a 50 ventas pagadas.
               </p>
             </>
           )}
-
-          <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl">
-            {[
-              { icon: "🔒", t: "Pago seguro", d: "Mercado Pago" },
-              { icon: "🛡️", t: "Anti doble venta", d: "4 capas" },
-              { icon: "⚡", t: "En minutos", d: "Listo rápido" },
-              { icon: "💝", t: "Solidarias", d: "Causas reales" }
-            ].map((f) => (
-              <div
-                key={f.t}
-                className="rounded-xl border border-white/60 bg-white/70 backdrop-blur-sm p-3 shadow-[0_4px_18px_-10px_rgba(255,27,81,0.18)]"
-              >
-                <div className="text-xl leading-none">{f.icon}</div>
-                <div className="mt-1.5 text-[12px] font-bold text-slate-800 leading-none">
-                  {f.t}
-                </div>
-                <div className="mt-0.5 text-[11px] text-slate-500">{f.d}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -166,37 +125,36 @@ export default async function CrearRifaPage({ searchParams }: PageProps) {
         {editingId ? (
           <PaymentMethodsToggles
             rifaId={editingId}
-            nequiVerified={nequiVerified}
+            manualVerified={manualVerified}
             defaultMethods={paymentMethods}
+            latestVerification={latestVerification}
           />
         ) : (
-          <Card className="border-dashed border-slate-200 bg-gradient-to-br from-slate-50/60 via-white to-slate-50/40 shadow-sm">
+          <Card className="border-dashed border-slate-200 bg-gradient-to-br from-slate-50/60 via-white to-slate-50/40 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg text-slate-900 flex items-center gap-2">
                 <Lock className="h-4 w-4 text-slate-400" /> Métodos de pago
               </CardTitle>
               <CardDescription className="text-xs text-slate-500">
-                Podrás activar Mercado Pago y/o Pago por Nequi después de crear tu rifa.
+                Podrás activar tus cobros manuales después de crear tu rifa.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="text-xs text-slate-600">
                 <span className="font-semibold text-slate-800">Nota:</span> Si
-                también quieres cobrar directamente por <b>Nequi</b> a tus clientes sin{" "}
-                <b>Mercado Pago</b>, sube primero tu verificación Nequi en tu{" "}
-                <Link href="/perfil#verificacion-nequi" className="text-brand-rose font-bold underline">
+                quieres cobrar directamente por <b>Nequi</b> o <b>Bancolombia</b>, sube
+                primero tu verificación de cobros manuales en tu{" "}
+                <Link href="/perfil#cobros-manuales" className="text-brand-rose font-bold underline">
                   panel de perfil
                 </Link>
                 . Un administrador la aprobará para que puedas activarlo en tus rifas.
               </div>
-              {!nequiVerified ? (
-                <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800">
+              {!manualVerified ? (
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <div>
-                    <b>Todavía no tienes verificación Nequi aprobada.</b>{" "}
-                    Activa primero tu verificación si quieres cobrar directamente por Nequi.
-                    Recuerda que <b>Mercado Pago</b> siempre viene activado por defecto y
-                    es instantáneo sin verificación.
+                    <b>Todavía no tienes cobros manuales aprobados.</b> Activa primero tu
+                    verificación si quieres cobrar directamente por Nequi o Bancolombia.
                   </div>
                 </div>
               ) : null}

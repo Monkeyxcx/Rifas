@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { UserNequiVerification, Perfil } from "@/lib/types";
@@ -81,7 +80,7 @@ export default function AdminNequiVerificationsPage() {
           error: uErr
         } = await supabase.auth.getUser();
         if (uErr || !user) {
-          redirect("/auth?redirectTo=%2Fadmin%2Fverificaciones-nequi");
+          router.replace("/auth?redirectTo=%2Fadmin%2Fverificaciones-nequi");
           return;
         }
         const { data: prof, error: pErr } = await supabase
@@ -194,11 +193,11 @@ export default function AdminNequiVerificationsPage() {
               <ShieldCheck className="mr-1 h-3 w-3" /> Panel administrador
             </Badge>
             <h1 className="font-display font-black tracking-tight text-2xl lg:text-3xl text-slate-900">
-              Verificaciones Nequi de creadores
+              Verificaciones de cobros manuales
             </h1>
             <p className="mt-1 text-sm text-slate-500 max-w-2xl">
-              Valida manualmente los documentos, certificado bancario y QR de cada creador
-              que quiera cobrar sus rifas por Nequi.
+              Valida manualmente documentos, soporte bancario y QR de cada creador que
+              quiera cobrar sus rifas por Nequi o Bancolombia.
             </p>
           </div>
           <Button asChild variant="outline" className="!border-slate-200">
@@ -312,7 +311,7 @@ export default function AdminNequiVerificationsPage() {
                               },
                               {
                                 url: r.nequi_certificate_url,
-                                label: "Certificado Nequi",
+                                label: "Soporte bancario principal",
                                 ic: FileText
                               },
                               ...(r.nequi_qr_url
@@ -320,6 +319,15 @@ export default function AdminNequiVerificationsPage() {
                                     {
                                       url: r.nequi_qr_url,
                                       label: "QR Nequi",
+                                      ic: QrCode
+                                    }
+                                  ]
+                                : []),
+                              ...(r.bancolombia_qr_url
+                                ? [
+                                    {
+                                      url: r.bancolombia_qr_url,
+                                      label: "QR Bancolombia",
                                       ic: QrCode
                                     }
                                   ]
@@ -371,7 +379,7 @@ export default function AdminNequiVerificationsPage() {
                               </div>
                             </div>
 
-                            <div className="grid gap-2 sm:grid-cols-3 text-xs">
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
                               <div className="rounded-lg border border-slate-200 bg-white/70 p-2.5">
                                 <div className="font-bold text-slate-600 uppercase tracking-wide text-[10px] flex items-center gap-1">
                                   <Phone className="h-3 w-3" /> Número Nequi
@@ -395,13 +403,33 @@ export default function AdminNequiVerificationsPage() {
                               </div>
                               <div className="rounded-lg border border-slate-200 bg-white/70 p-2.5">
                                 <div className="font-bold text-slate-600 uppercase tracking-wide text-[10px]">
-                                  Datos contacto creador
+                                  Titular
+                                </div>
+                                <div className="mt-1 font-semibold text-slate-900">
+                                  {r.account_holder_name || "No informado"}
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-slate-200 bg-white/70 p-2.5">
+                                <div className="font-bold text-slate-600 uppercase tracking-wide text-[10px]">
+                                  Bancolombia
                                 </div>
                                 <div className="mt-1 text-slate-800">
+                                  {r.bancolombia_account_label || "Sin alias/cuenta visible"}
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-slate-200 bg-white/70 p-2.5 sm:col-span-2 lg:col-span-4">
+                                <div className="font-bold text-slate-600 uppercase tracking-wide text-[10px]">
+                                  Datos contacto creador
+                                </div>
+                                <div className="mt-1 text-slate-800 flex flex-wrap gap-x-4 gap-y-1">
                                   {r.user?.phone ? (
                                     <div className="truncate">
                                       Celular: {r.user.phone}
                                     </div>
+                                  ) : null}
+                                  {r.nequi_qr_url ? <div className="truncate">QR Nequi adjunto</div> : null}
+                                  {r.bancolombia_qr_url ? (
+                                    <div className="truncate">QR Bancolombia adjunto</div>
                                   ) : null}
                                 </div>
                               </div>

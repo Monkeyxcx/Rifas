@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ReceiptText, ShieldAlert } from "lucide-react";
+import { ArrowLeft, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import VoucherReviewList from "@/components/nequi/VoucherReviewList";
 import type { NequiPayment } from "@/lib/types";
@@ -67,19 +66,11 @@ export default async function RifaComprobantesPage({ params }: PageProps) {
     );
   }
 
-  // Comprobar si rifa acepta Nequi
-  const { data: methods } = await sb
-    .from("rifa_payment_methods")
-    .select("accept_nequi, accept_mercado_pago")
-    .eq("rifa_id", rifaId)
-    .maybeSingle();
-  const acceptNequi = Boolean((methods as any)?.accept_nequi);
-
-  // Cargar lista pagos nequi
+  // Cargar lista de pagos manuales
   const { data: paymentsRows, error: pErr } = await sb
     .from("nequi_payments")
     .select(
-      "id, rifa_id, user_id, reserva_ids, numbers, amount, voucher_image_url, payer_phone, voucher_reference, status, review_notes, reviewed_at, reviewed_by, created_at, updated_at"
+      "id, rifa_id, user_id, payment_method_type, reserva_ids, numbers, amount, voucher_image_url, payer_phone, voucher_reference, status, review_notes, reviewed_at, reviewed_by, created_at, updated_at, user:profiles!nequi_payments_user_id_fkey(id, full_name, avatar_url)"
     )
     .eq("rifa_id", rifaId)
     .order("created_at", { ascending: false });
@@ -98,27 +89,18 @@ export default async function RifaComprobantesPage({ params }: PageProps) {
                 <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Volver a mis rifas
               </Link>
             </Button>
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <Badge className="!bg-emerald-500 !text-white !border-0 text-xs">
-                <ReceiptText className="mr-1 h-3 w-3" /> Comprobantes Nequi
-              </Badge>
-              {!acceptNequi ? (
-                <Badge variant="outline" className="!border-amber-300 !text-amber-700 !bg-amber-50">
-                  Nequi desactivado en esta rifa
-                </Badge>
-              ) : null}
-            </div>
             <h1 className="mt-3 font-display font-black tracking-tight text-2xl lg:text-3xl text-slate-900 leading-tight">
               {rifa.title}
             </h1>
             <p className="mt-1 text-sm text-slate-500 max-w-2xl">
-              Valida los comprobantes enviados por los participantes. Cuando apruebas un
-              comprobante, sus reservas se marcan automáticamente como pagadas.
+              Valida los comprobantes enviados por los participantes por Nequi o
+              Bancolombia. Cuando apruebas uno, sus reservas se marcan automáticamente
+              como pagadas.
             </p>
           </div>
           <Button asChild variant="outline" className="!border-slate-200">
             <Link href={`/rifas/crear?editar=${rifaId}`}>
-              Editar métodos de pago
+              Editar cobros manuales
             </Link>
           </Button>
         </div>

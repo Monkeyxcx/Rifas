@@ -42,15 +42,33 @@ type RifaRow = {
   metadata: unknown;
 };
 
-function toISO(value: string | undefined | null, hour: "20:00:00" | "19:00:00"): string | null {
+function toISO(value: string | undefined | null, fallbackTime: "20:00:00" | "19:00:00"): string | null {
   if (!value) return null;
-  if (value.includes("T")) return value;
-  return `${value}T${hour}.000Z`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const d = new Date(`${value}T${fallbackTime}`);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
 }
 
-function toDateInput(iso: string | null | undefined): string {
+function toDateTimeLocal(iso: string | null | undefined): string {
   if (!iso) return "";
-  return iso.slice(0, 10);
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${day}T${h}:${min}`;
 }
 
 export async function GET(
@@ -89,8 +107,8 @@ export async function GET(
       cause_target: Number(rifa.cause_target ?? 0),
       number_price: Number(rifa.number_price),
       total_numbers: Number(rifa.total_numbers),
-      ends_at_date: toDateInput(rifa.ends_at),
-      draw_date_date: toDateInput(rifa.draw_date),
+      ends_at_date: toDateTimeLocal(rifa.ends_at),
+      draw_date_date: toDateTimeLocal(rifa.draw_date),
       draw_instructions: rifa.draw_instructions ?? "",
       country: metaCountry ?? "Colombia"
     }

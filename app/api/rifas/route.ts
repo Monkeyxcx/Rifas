@@ -24,10 +24,21 @@ type CreateRifaBody = Partial<{
   country: string;
 }>;
 
-function toISO(value: string | undefined | null, hour: "20:00:00" | "19:00:00"): string | null {
+function toISO(value: string | undefined | null, fallbackTime: "20:00:00" | "19:00:00"): string | null {
   if (!value) return null;
-  if (value.includes("T")) return value;
-  return `${value}T${hour}.000Z`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const d = new Date(`${value}T${fallbackTime}`);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
 }
 
 function validate(body: CreateRifaBody): string | null {

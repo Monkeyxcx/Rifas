@@ -1,6 +1,4 @@
-import CheckoutPaymentButton from "@/components/checkout/CheckoutPaymentButton";
 import CountdownTimer from "@/components/checkout/CountdownTimer";
-import MPPaymentWatcherOverlay from "@/components/checkout/MPPaymentWatcherOverlay";
 import NequiCheckoutPane from "@/components/nequi/NequiCheckoutPane";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,18 +12,21 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  MANUAL_PAYMENT_METHODS,
+  getManualPaymentLabel
+} from "@/lib/manual-payments";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import type { Rifa, RifaStatus } from "@/lib/types";
+import type { ManualPaymentMethodType, Rifa, RifaStatus } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import {
   ArrowLeft,
   CalendarDays,
   Clock3,
-  CreditCard,
   FileCheck2,
   HeartHandshake,
+  Landmark,
   MapPin,
-  QrCode,
   ShieldCheck,
   Smartphone,
   Sparkles,
@@ -244,8 +245,7 @@ export default async function CheckoutPage({
 
   const unitPrice = rifa.number_price;
   const subtotal = numbersArr.length * unitPrice;
-  const platformFee = Math.round(subtotal * 0.03);
-  const total = subtotal + platformFee;
+  const total = subtotal;
   const soldPercentage = rifa.available_numbers
     ? Math.round(
         ((rifa.total_numbers - rifa.available_numbers) / rifa.total_numbers) * 100
@@ -255,34 +255,46 @@ export default async function CheckoutPage({
   const country = rifa.creator?.country ?? "Colombia";
   const currency = currencyMap[country] ?? "COP";
 
-  // PAYMENT METHODS · Mercado Pago / Nequi
-  let acceptMercadoPago = true;
+  // PAYMENT METHODS · solo cobros manuales al creador
   let acceptNequi = false;
+  let acceptBancolombiaQr = false;
+  let acceptBancolombiaTransfer = false;
   let nequiOverridePhone: string | null = null;
   let nequiOverrideQrUrl: string | null = null;
+  let bancolombiaQrOverrideUrl: string | null = null;
+  let bancolombiaAccountOverride: string | null = null;
   let creatorDefaultNequiPhone: string | null = null;
   let creatorDefaultNequiQrUrl: string | null = null;
+  let creatorAccountHolderName: string | null = null;
+  let creatorDefaultBancolombiaQrUrl: string | null = null;
+  let creatorDefaultBancolombiaAccountLabel: string | null = null;
 
   try {
     const { data: methods } = await supabase
       .from("rifa_payment_methods")
       .select(
-        "accept_mercado_pago, accept_nequi, nequi_phone_override, nequi_qr_override_url"
+        "accept_nequi, accept_bancolombia_qr, accept_bancolombia_transfer, nequi_phone_override, nequi_qr_override_url, bancolombia_qr_override_url, bancolombia_account_override"
       )
       .eq("rifa_id", rifa.id)
       .maybeSingle();
     if (methods) {
-      acceptMercadoPago = Boolean((methods as any).accept_mercado_pago);
       acceptNequi = Boolean((methods as any).accept_nequi);
+      acceptBancolombiaQr = Boolean((methods as any).accept_bancolombia_qr);
+      acceptBancolombiaTransfer = Boolean((methods as any).accept_bancolombia_transfer);
       nequiOverridePhone = (methods as any).nequi_phone_override ?? null;
       nequiOverrideQrUrl = (methods as any).nequi_qr_override_url ?? null;
+      bancolombiaQrOverrideUrl =
+        (methods as any).bancolombia_qr_override_url ?? null;
+      bancolombiaAccountOverride =
+        (methods as any).bancolombia_account_override ?? null;
     }
-    // default creator approved
-    if (acceptNequi || rifa.creator_id) {
+    if (acceptNequi || acceptBancolombiaQr || acceptBancolombiaTransfer || rifa.creator_id) {
       const adminSb = createServiceClient();
       const { data: creatorNequiStatus, error: vErr } = await (adminSb
         .from("user_nequi_status") as any)
-        .select("nequi_verified, nequi_phone, nequi_qr_url")
+        .select(
+          "nequi_verified, nequi_phone, nequi_qr_url, account_holder_name, bancolombia_qr_url, bancolombia_account_label"
+        )
         .eq("user_id", rifa.creator_id)
         .maybeSingle();
       const approved = creatorNequiStatus as
@@ -290,22 +302,30 @@ export default async function CheckoutPage({
             nequi_verified: boolean;
             nequi_phone: string | null;
             nequi_qr_url: string | null;
+            account_holder_name: string | null;
+            bancolombia_qr_url: string | null;
+            bancolombia_account_label: string | null;
           }
         | null;
       if (!vErr && approved?.nequi_verified) {
         creatorDefaultNequiPhone = approved.nequi_phone ?? null;
         creatorDefaultNequiQrUrl = approved.nequi_qr_url ?? null;
+        creatorAccountHolderName = approved.account_holder_name ?? null;
+        creatorDefaultBancolombiaQrUrl = approved.bancolombia_qr_url ?? null;
+        creatorDefaultBancolombiaAccountLabel =
+          approved.bancolombia_account_label ?? null;
       } else {
-        // si no tiene aprobada, no activar Nequi (guardia)
         acceptNequi = false;
+        acceptBancolombiaQr = false;
+        acceptBancolombiaTransfer = false;
       }
     }
   } catch (e) {
     acceptNequi = false;
-    acceptMercadoPago = true;
+    acceptBancolombiaQr = false;
+    acceptBancolombiaTransfer = false;
   }
 
-  // merge overrides (rifa-specific tiene prioridad sobre default creator)
   const nequiPhoneFinal =
     (nequiOverridePhone ? nequiOverridePhone.trim() : "") ||
     creatorDefaultNequiPhone ||
@@ -314,12 +334,25 @@ export default async function CheckoutPage({
     (nequiOverrideQrUrl ? nequiOverrideQrUrl.trim() : "") ||
     creatorDefaultNequiQrUrl ||
     "";
-  const defaultTab =
-    acceptMercadoPago && !acceptNequi
-      ? "mp"
-      : acceptNequi && !acceptMercadoPago
-        ? "nequi"
-        : "mp";
+  const bancolombiaQrFinal =
+    (bancolombiaQrOverrideUrl ? bancolombiaQrOverrideUrl.trim() : "") ||
+    creatorDefaultBancolombiaQrUrl ||
+    "";
+  const bancolombiaAccountFinal =
+    (bancolombiaAccountOverride ? bancolombiaAccountOverride.trim() : "") ||
+    creatorDefaultBancolombiaAccountLabel ||
+    "";
+
+  const manualPaymentOptions = MANUAL_PAYMENT_METHODS.filter((method) => {
+    if (method === "nequi") {
+      return acceptNequi && Boolean(nequiPhoneFinal || nequiQrFinal);
+    }
+    if (method === "bancolombia_qr") {
+      return acceptBancolombiaQr && Boolean(bancolombiaQrFinal || bancolombiaAccountFinal);
+    }
+    return acceptBancolombiaTransfer && Boolean(bancolombiaAccountFinal);
+  }) as ManualPaymentMethodType[];
+  const defaultTab = manualPaymentOptions[0] ?? "manual-unavailable";
 
   const expiresAt = minExpireIso ?? new Date(Date.now() + 15 * 60 * 1000).toISOString();
   const endsDate = rifa.ends_at ? new Date(rifa.ends_at) : null;
@@ -335,8 +368,6 @@ export default async function CheckoutPage({
 
   const prettyRifaEnds = endsDate ? endsDate.toLocaleDateString("es-ES", dateOpts) : "—";
   const prettyDrawDate = drawDate ? drawDate.toLocaleDateString("es-ES", dateOpts) : "—";
-
-  const isDemo = process.env.NODE_ENV !== "production";
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 w-full overflow-hidden">
@@ -381,10 +412,7 @@ export default async function CheckoutPage({
                 )}
               </div>
               <h1 className="mt-2 sm:mt-3 font-display text-xl sm:text-3xl font-black tracking-tight text-slate-900 lg:text-4xl leading-tight min-w-0 break-words">
-                Completa tu pago
-                <span className="block sm:inline bg-gradient-to-r from-brand-rose via-brand-violet to-brand-cyan bg-clip-text text-transparent">
-                  {" "}· {rifa.prize_name.length > 26 && typeof window === "undefined" ? rifa.prize_name.slice(0, 24) + "…" : rifa.prize_name}
-                </span>
+                Completa tu pago · {rifa.prize_name}
               </h1>
               <p className="mt-1 sm:mt-1.5 max-w-2xl text-[11px] sm:text-xs sm:text-sm text-slate-500 leading-relaxed">
                 Tus números están bloqueados 15 min. Paga antes de que termine el plazo y son tuyos al 100%. ¡Suerte! 🍀
@@ -404,56 +432,45 @@ export default async function CheckoutPage({
           <div className="space-y-4 sm:space-y-5 sm:space-y-6 lg:col-span-3 min-w-0 w-full">
             {/* CARD 1 · INFO RIFA */}
             <Card className="overflow-hidden border-slate-200 shadow-sm w-full min-w-0">
-              <div
-                className={
-                  rifa.is_solidarity
-                    ? "relative h-28 sm:h-32 sm:h-40 md:h-44 bg-gradient-to-br from-brand-cyan via-emerald-400 to-brand-rose px-3 sm:px-4 sm:p-5 md:p-6 pt-3 sm:pt-4 pb-3 sm:pb-4 text-white"
-                    : "relative h-28 sm:h-32 sm:h-40 md:h-44 bg-gradient-to-br from-brand-rose via-brand-violet to-brand-cyan px-3 sm:px-4 sm:p-5 md:p-6 pt-3 sm:pt-4 pb-3 sm:pb-4 text-white"
-                }
-              >
-                <div
-                  className="pointer-events-none absolute inset-0 opacity-25 -left-2 -right-2"
-                  style={{
-                    backgroundImage:
-                      "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.9) 1px, transparent 0)",
-                    backgroundSize: "14px 14px"
-                  }}
-                />
-                <div className="relative flex h-full flex-col justify-between gap-1.5">
-                  <div className="flex items-start justify-between gap-1.5 sm:gap-2">
-                    <Badge
-                      variant={rifa.is_solidarity ? "solidarity" : "prize"}
-                      className="!bg-white !bg-opacity-95 !border-0 !text-[10px] sm:!text-xs py-0 shrink-0"
-                    >
-                      {rifa.is_solidarity ? (
-                        <>
-                          <HeartHandshake className="mr-1 h-3 w-3" /> Solidaria
-                        </>
-                      ) : (
-                        <>
-                          <Trophy className="mr-1 h-3 w-3" /> Premio
-                        </>
-                      )}
-                    </Badge>
-                    <Badge variant="active" className="!bg-white/95 !text-slate-800 !border-0 shadow !text-[10px] sm:!text-xs py-0 shrink-0">
-                      <Zap className="mr-1 h-3 w-3" /> {soldPercentage}%
-                    </Badge>
-                  </div>
+              <div className="relative border-b border-slate-100 bg-slate-50 px-3 sm:px-4 sm:px-6 py-4 sm:py-5">
+                <div className="flex items-start justify-between gap-2">
+                  <Badge
+                    variant={rifa.is_solidarity ? "solidarity" : "outline"}
+                    className="border-slate-200 text-[10px] sm:text-xs py-0 shrink-0"
+                  >
+                    {rifa.is_solidarity ? (
+                      <>
+                        <HeartHandshake className="mr-1 h-3 w-3" /> Solidaria
+                      </>
+                    ) : (
+                      <>
+                        <Trophy className="mr-1 h-3 w-3" /> Premio
+                      </>
+                    )}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="border-slate-200 text-slate-700 text-[10px] sm:text-xs py-0 shrink-0"
+                  >
+                    <Zap className="mr-1 h-3 w-3" /> {soldPercentage}%
+                  </Badge>
+                </div>
 
-                  <div className="space-y-0.5">
-                    <p className="text-[9px] sm:text-[10px] sm:text-xs font-semibold uppercase tracking-wider opacity-90">
-                      Premio
-                    </p>
-                    <h3 className="font-numbers text-xl sm:text-2xl sm:text-3xl font-black tabular-nums tracking-tight drop-shadow-sm">
-                      {formatCurrency(rifa.prize_value, currency)}
-                    </h3>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] sm:text-[11px] sm:text-xs font-medium opacity-95">
-                      <MapPin className="h-3 w-3" />
-                      {country}
-                      <span className="opacity-60 hidden sm:inline">·</span>
-                      <CalendarDays className="h-3 w-3 hidden sm:inline" />
-                      <span className="hidden sm:inline whitespace-nowrap overflow-hidden text-ellipsis">{rifa.ends_at ? endsDate?.toLocaleDateString("es-CO") : "—"}</span>
-                    </div>
+                <div className="mt-3 space-y-0.5">
+                  <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Valor del premio
+                  </p>
+                  <h3 className="font-numbers text-xl sm:text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-slate-900">
+                    {formatCurrency(rifa.prize_value, currency)}
+                  </h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] sm:text-xs font-medium text-slate-500">
+                    <MapPin className="h-3 w-3" />
+                    {country}
+                    <span className="text-slate-300 hidden sm:inline">·</span>
+                    <CalendarDays className="h-3 w-3 hidden sm:inline" />
+                    <span className="hidden sm:inline whitespace-nowrap overflow-hidden text-ellipsis">
+                      {rifa.ends_at ? endsDate?.toLocaleDateString("es-CO") : "—"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -588,23 +605,16 @@ export default async function CheckoutPage({
             <div className="lg:sticky lg:top-[152px] space-y-3.5 sm:space-y-5 w-full min-w-0">
               {/* CARD PAGO SEGURO */}
               <Card className="overflow-hidden border-slate-200 shadow-lg w-full min-w-0">
-                <div className="relative bg-gradient-to-br from-brand-gold via-rose-500 to-brand-violet px-3 sm:p-5 py-3 sm:py-5 text-white w-full min-w-0">
-                  <div
-                    className="pointer-events-none absolute inset-0 opacity-20 -left-2 -right-2"
-                    style={{
-                      backgroundImage:
-                        "radial-gradient(circle at 20% 0%, rgba(255,255,255,0.8) 0, transparent 40%), radial-gradient(circle at 100% 100%, rgba(255,255,255,0.6) 0, transparent 40%)"
-                    }}
-                  />
-                  <div className="relative flex items-center gap-2 sm:gap-3 w-full min-w-0">
-                    <div className="grid h-9 w-9 sm:h-12 sm:w-12 shrink-0 place-items-center rounded-lg sm:rounded-2xl bg-white/15 backdrop-blur ring-1 ring-white/40">
-                      <ShieldCheck className="h-4 w-4 sm:h-6 sm:w-6" strokeWidth={2.3} />
+                <div className="border-b border-slate-100 bg-white px-3 sm:px-5 py-3.5 sm:py-4 w-full min-w-0">
+                  <div className="flex items-center gap-2.5 sm:gap-3 w-full min-w-0">
+                    <div className="grid h-9 w-9 sm:h-10 sm:w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700">
+                      <ShieldCheck className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={2.2} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[9px] sm:text-xs font-semibold uppercase tracking-widest opacity-90 truncate">
-                        Pago seguro · Mercado Pago
+                      <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 truncate">
+                        Pago manual al creador
                       </p>
-                      <h3 className="font-display text-sm sm:text-xl font-black leading-tight truncate">
+                      <h3 className="font-display text-sm sm:text-lg font-extrabold leading-tight text-slate-900 truncate">
                         Completa tu pago
                       </h3>
                     </div>
@@ -615,7 +625,7 @@ export default async function CheckoutPage({
                   {/* USUARIO (solo lectura con datos reales de perfil) */}
                   <div className="space-y-2 sm:space-y-2.5 sm:space-y-3 w-full min-w-0">
                     <h4 className="text-[11px] sm:text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5 sm:gap-2 min-w-0">
-                      <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-brand-violet shrink-0" />
+                      <Smartphone className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-brand-violet shrink-0" />
                       Comprador
                     </h4>
                     <div className="space-y-1.5 sm:space-y-2 rounded-xl sm:rounded-2xl bg-slate-50 p-2 sm:p-2.5 sm:p-3.5 text-[10px] sm:text-[11px] sm:text-xs text-slate-600 w-full min-w-0">
@@ -638,46 +648,12 @@ export default async function CheckoutPage({
 
                   <Separator />
 
-                  {/* MEDIOS PAGO */}
-                  <div className="space-y-2 sm:space-y-2.5 sm:space-y-3 w-full min-w-0">
-                    <h4 className="text-[11px] sm:text-xs sm:text-sm font-bold text-slate-900">Medios de pago</h4>
-                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-1 sm:gap-2 w-full min-w-0">
-                      {[
-                        "VISA",
-                        "MC",
-                        "AMEX",
-                        "QR",
-                        "Pix",
-                        "SPEI",
-                        "Cabal",
-                        "Diners",
-                        "RapiPago",
-                        "PIM",
-                        "Bancos",
-                        "Efectivo"
-                      ].map((m) => (
-                        <div
-                          key={m}
-                          className="grid aspect-[5/3] place-items-center rounded-[6px] sm:rounded-md sm:rounded-lg border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-0.5 sm:px-1 text-center text-[8px] sm:text-[9px] sm:text-[10px] font-black uppercase tracking-tight text-slate-500 transition hover:border-brand-rose/40 hover:from-rose-50 hover:text-brand-rose w-full overflow-hidden truncate"
-                        >
-                          <span className="truncate">{m}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Separator />
-
                   {/* RESUMEN TOTAL */}
                   <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-2.5 sm:p-3 sm:p-4 w-full min-w-0">
                     <div className="space-y-1.5 text-[11px] sm:text-xs sm:text-sm w-full min-w-0">
                       <div className="flex justify-between gap-2 text-slate-500 min-w-0">
                         <span className="truncate min-w-0 flex-1">{numbersArr.length} × {formatCurrency(unitPrice, currency)}</span>
                         <span className="font-numbers tabular-nums shrink-0 whitespace-nowrap">{formatCurrency(subtotal, currency)}</span>
-                      </div>
-                      <div className="flex justify-between gap-2 text-slate-500 min-w-0">
-                        <span className="truncate min-w-0 flex-1">Plataforma (3%)</span>
-                        <span className="font-numbers tabular-nums shrink-0 whitespace-nowrap">{formatCurrency(platformFee, currency)}</span>
                       </div>
                       <Separator className="my-1.5 sm:my-2" />
                       <div className="flex items-baseline justify-between gap-2 min-w-0">
@@ -688,82 +664,72 @@ export default async function CheckoutPage({
                           {formatCurrency(total, currency)}
                         </span>
                       </div>
-                      <div className="mt-0.5 flex justify-end text-[9px] sm:text-[10px] sm:text-[11px] font-semibold text-slate-400 whitespace-nowrap">
-                        {currency} · Impuestos incluidos
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[10px] sm:text-[11px] text-emerald-800">
+                        Sin cargos extra para ti. La comisión del 3% la asume el creador de la rifa cuando alcance 50 boletas vendidas.
                       </div>
                     </div>
                   </div>
 
-                  <Tabs
-                    defaultValue={defaultTab}
-                    className="w-full"
-                  >
-                    <TabsList className="grid w-full grid-cols-2 mb-3">
-                      <TabsTrigger
-                        value="mp"
-                        disabled={!acceptMercadoPago}
-                        className="text-[11px] sm:text-xs"
+                  {manualPaymentOptions.length === 0 ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                      Esta rifa todavía no tiene un método manual de cobro activo. Vuelve a
+                      la rifa o contacta al creador para que habilite Nequi o Bancolombia.
+                    </div>
+                  ) : (
+                    <Tabs defaultValue={defaultTab} className="w-full">
+                      <TabsList
+                        className="mb-3 grid w-full"
+                        style={{
+                          gridTemplateColumns: `repeat(${manualPaymentOptions.length}, minmax(0, 1fr))`
+                        }}
                       >
-                        <CreditCard className="mr-1.5 h-3.5 w-3.5" />
-                        Mercado Pago
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="nequi"
-                        disabled={!acceptNequi || !nequiPhoneFinal}
-                        className="text-[11px] sm:text-xs"
-                      >
-                        <QrCode className="mr-1.5 h-3.5 w-3.5" />
-                        Pagar con Nequi
-                      </TabsTrigger>
-                    </TabsList>
+                        {manualPaymentOptions.map((method) => (
+                          <TabsTrigger
+                            key={method}
+                            value={method}
+                            className="text-[11px] sm:text-xs"
+                          >
+                            {method === "nequi" ? (
+                              <Smartphone className="mr-1.5 h-3.5 w-3.5" />
+                            ) : (
+                              <Landmark className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            {getManualPaymentLabel(method)}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
 
-                    <TabsContent value="mp" className="space-y-3">
-                      {!acceptMercadoPago ? (
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                          Mercado Pago no está disponible para esta rifa. Usa Pagar con Nequi.
-                        </div>
-                      ) : null}
-                      <CheckoutPaymentButton
-                        reservaId={reservaId}
-                        rifaId={rifa.id}
-                        numbers={numbersArr}
-                        total={total}
-                        currency={currency}
-                        payerEmail={payerEmail}
-                        payerName={payerName}
-                        payerPhone={payerPhone}
-                      />
-                      <MPPaymentWatcherOverlay
-                        reservaId={reservaId}
-                        rifaId={rifa.id}
-                        initialStatus={(reservas[0]?.status as "reserved") ?? "reserved"}
-                        numbers={numbersArr}
-                        unitPrice={unitPrice}
-                        totalAmount={total}
-                        currency={currency}
-                      />
-                      {isDemo && (
-                        <div className="rounded-lg sm:rounded-xl border border-dashed border-brand-gold/60 bg-amber-50/70 px-2.5 sm:px-3 py-1.5 sm:py-2 text-center text-[9px] sm:text-[10px] sm:text-[11px] font-bold text-amber-700 leading-snug w-full min-w-0">
-                          🧪 MODO DEMO · Sandbox · Sin cargos reales
-                        </div>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="nequi" className="mt-0">
-                      <NequiCheckoutPane
-                        reservaIds={reservas.map((r) => r.id)}
-                        numbers={numbersArr}
-                        rifaId={rifa.id}
-                        rifaTitle={rifa.title}
-                        creatorName={rifa.creator?.full_name ?? "Creador"}
-                        creatorNequiPhone={nequiPhoneFinal || null}
-                        creatorNequiQrUrl={nequiQrFinal || null}
-                        unitPrice={unitPrice}
-                        amount={total}
-                        participantUserId={user.id}
-                      />
-                    </TabsContent>
-                  </Tabs>
+                      {manualPaymentOptions.map((method) => (
+                        <TabsContent key={method} value={method} className="mt-0">
+                          <NequiCheckoutPane
+                            reservaIds={reservas.map((r) => r.id)}
+                            numbers={numbersArr}
+                            rifaId={rifa.id}
+                            rifaTitle={rifa.title}
+                            creatorName={rifa.creator?.full_name ?? "Creador"}
+                            creatorAccountHolderName={creatorAccountHolderName}
+                            creatorPaymentPhone={method === "nequi" ? nequiPhoneFinal || null : null}
+                            creatorPaymentQrUrl={
+                              method === "nequi"
+                                ? nequiQrFinal || null
+                                : method === "bancolombia_qr"
+                                  ? bancolombiaQrFinal || null
+                                  : null
+                            }
+                            creatorPaymentAccountLabel={
+                              method === "bancolombia_qr" || method === "bancolombia_transfer"
+                                ? bancolombiaAccountFinal || null
+                                : null
+                            }
+                            paymentMethodType={method}
+                            unitPrice={unitPrice}
+                            amount={total}
+                            participantUserId={user.id}
+                          />
+                        </TabsContent>
+                      ))}
+                    </Tabs>
+                  )}
                 </CardContent>
 
                 <CardFooter className="grid gap-2 border-t border-slate-100 bg-slate-50/80 px-3 sm:px-4 sm:px-6 py-2.5 sm:py-3 sm:py-4 text-[10px] sm:text-[10px] sm:text-[11px] font-semibold text-slate-500 w-full min-w-0">

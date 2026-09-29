@@ -30,7 +30,7 @@ export function ProfileSignOutButton() {
     <Button
       type="button"
       variant="outline"
-      className="!h-10 justify-start !border-rose-200 !bg-rose-50/40 !text-rose-700 hover:!bg-rose-100 font-bold"
+      className="h-9 justify-start border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-semibold"
       disabled={allPending}
       onClick={() => start(() => void onSignOut())}
     >

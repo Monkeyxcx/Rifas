@@ -64,11 +64,11 @@ export async function POST(req: NextRequest, { params }: any) {
         type: body.status === "approved" ? "nequi_approved" : "nequi_rejected",
         title:
           body.status === "approved"
-            ? "¡Verificación Nequi aprobada!"
-            : "Verificación Nequi requiere revisión",
+            ? "¡Cobros manuales aprobados!"
+            : "Tu verificación de cobros manuales requiere revisión",
         message:
           body.status === "approved"
-            ? "Ya puedes habilitar pago por Nequi en tus rifas creadas."
+            ? "Ya puedes habilitar Nequi o Bancolombia en tus rifas creadas."
             : `Un administrador rechazó tu verificación. Nota: ${
                 body.notes || "revista los documentos y vuelve a enviarla."
               }`,

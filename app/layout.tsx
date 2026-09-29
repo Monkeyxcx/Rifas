@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Poppins } from "next/font/google";
 import Script from "next/script";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -22,7 +23,7 @@ const SITE_URL =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "RifasCenter — Tu número, tu premio, tu causa.",
+    default: "RifasCenter",
     template: "%s · RifasCenter"
   },
   description:
@@ -46,7 +47,7 @@ export const metadata: Metadata = {
     locale: "es_LA",
     url: SITE_URL,
     siteName: "RifasCenter",
-    title: "RifasCenter — Tu número, tu premio, tu causa.",
+    title: "RifasCenter",
     description:
       "Rifas y sorteos digitales: participa por premios o crea rifas solidarias para tu comunidad."
   },
@@ -88,7 +89,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={`${inter.variable} ${poppins.variable}`}>
+    <html
+      lang="es"
+      className={`${inter.variable} ${poppins.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         {/*
           Script ANTES de React hydrate: elimina atributos data-trae-ref="eX"
@@ -167,9 +172,11 @@ export default function RootLayout({
         </Script>
       </head>
       <body
-        className={`${inter.className} font-sans antialiased min-h-screen flex flex-col bg-slate-50`}
+        className={`${inter.className} font-sans antialiased min-h-screen flex flex-col bg-background text-foreground`}
       >
-        <main className="flex-1 flex flex-col">{children}</main>
+        <ThemeProvider>
+          <main className="flex-1 flex flex-col">{children}</main>
+        </ThemeProvider>
       </body>
     </html>
   );

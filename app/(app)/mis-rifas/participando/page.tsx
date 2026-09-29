@@ -22,6 +22,7 @@ import {
     Trophy
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 
 export const revalidate = 0;
@@ -294,44 +295,30 @@ export default async function MisRifasParticipandoPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+    <main className="min-h-screen bg-slate-50">
       <div className="container mx-auto max-w-7xl px-4 py-10 lg:py-12">
-        {/* HEADER gradient cyan/rose */}
-        <div className="relative mb-10 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-cyan via-sky-500 to-brand-rose p-7 lg:p-10 text-white shadow-xl">
-          <div
-            className="pointer-events-none absolute inset-0 opacity-20"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.9) 1px, transparent 0)",
-              backgroundSize: "20px 20px"
-            }}
-          />
-          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <Badge className="!bg-white !bg-opacity-95 !text-brand-cyan !border-0 mb-3 shadow">
-                <Ticket className="mr-1.5 h-3 w-3" />
+        <header className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Mis participaciones
-              </Badge>
-              <h1 className="font-display text-3xl font-black tracking-tight lg:text-4xl">
+              </p>
+              <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight sm:text-3xl lg:text-4xl">
                 Mis rifas · Historial de participaciones
               </h1>
-              <p className="mt-2 max-w-2xl text-sm text-white/85 lg:text-base">
-                Todos tus números, pagos y tickets oficiales en un solo lugar. Si uno de tus números sale sorteado
-                te contactamos en 24 horas. ¡Mucha suerte! 🍀
+              <p className="mt-2 max-w-2xl text-sm text-slate-500 lg:text-base">
+                Todos tus números, pagos y tickets oficiales en un solo lugar. Si uno de tus números
+                sale sorteado te contactamos en 24 horas.
               </p>
             </div>
-            <Button
-              asChild
-              size="lg"
-              className="group h-12 !bg-white !text-brand-cyan hover:!bg-white/90 shadow-cta shadow-black/10"
-            >
-              <Link href="/rifas" className="flex items-center gap-2 font-black">
-                <Gift className="h-5 w-5 transition group-hover:scale-110" strokeWidth={2.4} />
+            <Button asChild size="lg" className="h-11 shrink-0 bg-brand-rose font-semibold text-white hover:bg-brand-rose/90">
+              <Link href="/rifas" className="flex items-center gap-2">
+                <Gift className="h-5 w-5" strokeWidth={2.2} />
                 Explorar más rifas
               </Link>
             </Button>
           </div>
-        </div>
+        </header>
 
         {/* STATS 4 cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
@@ -428,7 +415,6 @@ export default async function MisRifasParticipandoPage() {
             </Card>
           ) : (
             participaciones.map((p) => {
-              const country = p.rifa.creator?.country ?? "Colombia";
               const drawDate = p.rifa.draw_date ? new Date(p.rifa.draw_date) : null;
               return (
                 <Card
@@ -437,33 +423,24 @@ export default async function MisRifasParticipandoPage() {
                 >
                   <div className="grid gap-0 md:grid-cols-[1fr_auto]">
                     <CardHeader className="pb-4 md:pb-6 flex flex-col gap-3 md:flex-row md:items-start">
-                      <div
-                        className={
-                          p.rifa.is_solidarity
-                            ? "relative flex h-28 w-full md:h-full md:w-40 shrink-0 rounded-2xl overflow-hidden bg-gradient-to-br from-brand-cyan via-emerald-400 to-brand-rose text-white"
-                            : "relative flex h-28 w-full md:h-full md:w-40 shrink-0 rounded-2xl overflow-hidden bg-gradient-to-br from-brand-rose via-brand-violet to-brand-cyan text-white"
-                        }
-                      >
-                        <div
-                          className="pointer-events-none absolute inset-0 opacity-25"
-                          style={{
-                            backgroundImage:
-                              "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.9) 1px, transparent 0)",
-                            backgroundSize: "16px 16px"
-                          }}
-                        />
-                        <div className="relative z-10 m-auto text-center">
-                          <div className="mx-auto mb-1 grid h-10 w-10 place-items-center rounded-xl bg-white/15 backdrop-blur">
+                      <div className="relative flex h-28 w-full md:h-40 md:w-40 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
+                        {p.rifa.prize_image_url ? (
+                          <Image
+                            src={p.rifa.prize_image_url}
+                            alt={p.rifa.prize_name || p.rifa.title}
+                            fill
+                            sizes="(max-width: 768px) 100vw, 160px"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="relative flex h-full w-full items-center justify-center bg-slate-100 text-slate-400">
                             {p.rifa.is_solidarity ? (
-                              <Gift className="h-5 w-5" />
+                              <Gift className="h-8 w-8" />
                             ) : (
-                              <Trophy className="h-5 w-5" />
+                              <Trophy className="h-8 w-8" />
                             )}
                           </div>
-                          <p className="font-numbers text-[10px] font-black uppercase tracking-wider opacity-90">
-                            {country}
-                          </p>
-                        </div>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-1.5">

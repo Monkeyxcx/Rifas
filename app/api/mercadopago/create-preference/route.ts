@@ -144,8 +144,8 @@ export async function POST(req: Request) {
 
   const unitPrice = rifaInfo.number_price;
   const subtotal = unitPrice * numbers.length;
-  const platformFee = Math.round(subtotal * 0.03);
-  const totalAmount = subtotal + platformFee;
+  const platformFee = 0;
+  const totalAmount = subtotal;
 
   const currencyMap: Record<string, string> = {
     Argentina: "ARS",
@@ -243,6 +243,7 @@ export async function POST(req: Request) {
       items,
       externalReference,
       metadata: {
+        payment_purpose: "ticket_purchase",
         rifa_id: rifaId,
         reserva_id: reservaId ?? "",
         numbers: numbers.join(","),

@@ -21,9 +21,12 @@ import {
   DollarSign,
   Eye,
   ShieldCheck,
-  UserRound
+  UserRound,
+  Building2,
+  Smartphone
 } from "lucide-react";
 import type { NequiPayment } from "@/lib/types";
+import { getManualPaymentLabel } from "@/lib/manual-payments";
 
 type Props = {
   rifaId: string;
@@ -109,11 +112,12 @@ export default function VoucherReviewList({
               </div>
               <div>
                 <CardTitle className="font-display text-lg">
-                  Comprobantes Nequi · {rifaTitle}
+                  Comprobantes manuales · {rifaTitle}
                 </CardTitle>
                 <CardDescription className="text-sm">
-                  Valida manualmente los comprobantes que envían los participantes.
-                  Cuando apruebas, sus reservas quedan marcadas como pagadas.
+                  Valida manualmente los comprobantes que envían los participantes por
+                  Nequi o Bancolombia. Cuando apruebas, sus reservas quedan marcadas como
+                  pagadas.
                 </CardDescription>
               </div>
             </div>
@@ -249,6 +253,14 @@ export default function VoucherReviewList({
                                     {p.user?.full_name ?? `User ${p.user_id.slice(0, 8)}`}
                                   </span>
                                 </div>
+                                <Badge variant="outline" className="!border-slate-300 !bg-white/80 !text-slate-700 text-[10px]">
+                                  {p.payment_method_type === "nequi" ? (
+                                    <Smartphone className="mr-1 h-3 w-3" />
+                                  ) : (
+                                    <Building2 className="mr-1 h-3 w-3" />
+                                  )}
+                                  {getManualPaymentLabel(p.payment_method_type)}
+                                </Badge>
                                 {statusBadge(p.status)}
                               </div>
                               <div className="text-xs text-slate-500">

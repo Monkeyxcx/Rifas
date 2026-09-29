@@ -9,14 +9,14 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative flex min-h-screen flex-col bg-slate-50 text-slate-900">
+    <div className="relative flex min-h-screen flex-col bg-background text-foreground">
       <Navbar />
       <div className="flex-1 flex flex-col">{children}</div>
       <Footer />
 
       <div
         aria-hidden
-        className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/70 bg-white/95 backdrop-blur px-2 sm:px-4 py-2 pb-2 sm:pb-3"
+        className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/70 bg-white/95 backdrop-blur px-2 sm:px-4 py-2 pb-2 sm:pb-3 dark:border-slate-800 dark:bg-slate-950/95"
       >
         <div className="container max-w-content">
           <AdBannerPlaceholder

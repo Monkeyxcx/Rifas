@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { syncCreatorFeeStateForRifa } from "@/lib/creator-fees";
 import type { Rifa } from "@/lib/types";
 import { MOCK_RIFAS } from "@/components/rifas/MOCK_RIFAS";
 
@@ -154,8 +155,8 @@ export async function POST(req: Request) {
   }
 
   const subtotal = numbers.length * unitPrice;
-  const platformFee = Math.round(subtotal * 0.03);
-  const totalAmount = subtotal + platformFee;
+  const platformFee = 0;
+  const totalAmount = subtotal;
   const expiresAt = new Date(Date.now() + RESERVATION_GRACE_MINUTES * 60 * 1000);
   const reservaId = generateUUID();
 
@@ -216,6 +217,57 @@ export async function POST(req: Request) {
   // PATH SUPABASE REAL: llamamos a RPC buy_reservations FOR UPDATE.
   // ======================================================================
   try {
+    const adminSb = createServiceClient();
+    const creatorFeeState = await syncCreatorFeeStateForRifa(adminSb, rifaId).catch(
+      () => null
+    );
+    if (creatorFeeState?.blocking_sales) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Esta rifa está pausada temporalmente. El creador debe pagar la comisión del 3% para seguir vendiendo después de 50 boletas pagadas.",
+          creator_fee_blocked: true,
+          fee_amount: creatorFeeState.fee_amount,
+          paid_tickets_count: creatorFeeState.paid_tickets_count
+        },
+        { status: 409 }
+      );
+    }
+
+    try {
+      const { data: methodRow } = await adminSb
+        .from("rifa_payment_methods")
+        .select("accept_nequi, accept_bancolombia_qr, accept_bancolombia_transfer")
+        .eq("rifa_id", rifaId)
+        .maybeSingle();
+      const hasManualMethod = Boolean(
+        (methodRow as any)?.accept_nequi ||
+          (methodRow as any)?.accept_bancolombia_qr ||
+          (methodRow as any)?.accept_bancolombia_transfer
+      );
+      if (!hasManualMethod) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "Esta rifa todavía no tiene métodos manuales de cobro activos. El creador debe habilitar Nequi o Bancolombia antes de vender.",
+            manual_methods_missing: true
+          },
+          { status: 409 }
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "No se pudieron validar los métodos manuales de cobro de esta rifa. Intenta nuevamente en unos segundos."
+        },
+        { status: 409 }
+      );
+    }
+
     const supabase = await createClient();
     const { data, error } = await (
       supabase.rpc as unknown as (

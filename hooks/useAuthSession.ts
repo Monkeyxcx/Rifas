@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Perfil } from "@/lib/types";
@@ -21,11 +21,18 @@ export function useAuthSession(): AuthState {
   const [profile, setProfile] = useState<Perfil | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const inFlightProfileUserIdRef = useRef<string | null>(null);
+  const loadedProfileUserIdRef = useRef<string | null>(null);
 
   const supabase = createClient();
 
-  const loadProfile = async (userId: string) => {
+  const loadProfile = async (userId: string, force = false) => {
+    if (!force) {
+      if (inFlightProfileUserIdRef.current === userId) return;
+      if (loadedProfileUserIdRef.current === userId) return;
+    }
     try {
+      inFlightProfileUserIdRef.current = userId;
       const { data, error: pErr } = await supabase
         .from("profiles")
         .select("*")
@@ -36,9 +43,14 @@ export function useAuthSession(): AuthState {
         console.warn("[useAuthSession] loadProfile error:", pErr.message);
         return;
       }
+      loadedProfileUserIdRef.current = userId;
       setProfile((data as unknown as Perfil) ?? null);
     } catch (e) {
       console.warn("[useAuthSession] loadProfile exception:", e);
+    } finally {
+      if (inFlightProfileUserIdRef.current === userId) {
+        inFlightProfileUserIdRef.current = null;
+      }
     }
   };
 
@@ -52,13 +64,8 @@ export function useAuthSession(): AuthState {
         } = await supabase.auth.getSession();
 
         if (cancelled) return;
-
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
-
-        if (initialSession?.user) {
-          await loadProfile(initialSession.user.id);
-        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "session init failed");
       } finally {
@@ -78,6 +85,8 @@ export function useAuthSession(): AuthState {
       if (newSession?.user) {
         await loadProfile(newSession.user.id);
       } else {
+        loadedProfileUserIdRef.current = null;
+        inFlightProfileUserIdRef.current = null;
         setProfile(null);
       }
     });
@@ -98,6 +107,8 @@ export function useAuthSession(): AuthState {
         await fetch("/api/auth/signout", { method: "POST", credentials: "include" });
       } catch { /* ignore network errors, local signOut anyway */ }
       await supabase.auth.signOut();
+      loadedProfileUserIdRef.current = null;
+      inFlightProfileUserIdRef.current = null;
       setProfile(null);
       setUser(null);
       setSession(null);
@@ -123,6 +134,6 @@ export function useAuthSession(): AuthState {
     loading,
     error,
     signOut,
-    refreshProfile: () => (user ? loadProfile(user.id) : Promise.resolve())
+    refreshProfile: () => (user ? loadProfile(user.id, true) : Promise.resolve())
   };
 }

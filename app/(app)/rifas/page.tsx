@@ -87,7 +87,6 @@ async function RifasListInner({
 
   const allRifas = await getActiveRifas();
 
-  const totalRifas = allRifas.length;
   const totalSolidarity = allRifas.filter((x) => x.rifa.is_solidarity).length;
   const totalRaised = allRifas.reduce(
     (acc, { rifa, stats }) =>
@@ -111,7 +110,6 @@ async function RifasListInner({
       initialSort={initialSort}
       initialMaxPrice={initialMaxPrice}
       maxPriceAvailable={maxPriceAvailable}
-      totalRifas={totalRifas}
       totalSolidarity={totalSolidarity}
       totalRaised={totalRaised}
       totalNumbersSold={totalNumbersSold}
