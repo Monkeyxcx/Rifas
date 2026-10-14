@@ -102,20 +102,27 @@ export default function NequiCheckoutPane(props: Props) {
     try {
       setLoading(true);
       setMsg("");
-      const payload = {
-        rifa_id: rifaId,
-        user_id: participantUserId,
-        reserva_ids: reservaIds,
-        payment_method_type: paymentMethodType,
-        numbers,
-        amount: Number(amount.toFixed(2)),
-        voucher_image_url: voucherUrl,
-        voucher_reference: reference.trim().slice(0, 80) || null,
-        payer_phone: payerPhone.trim().slice(0, 15) || null,
-        status: "pending"
+      // P0-2: crear voucher vía API server que valida ownership,
+      // monto (price*N), estado reserved no vencido y anti-duplicados.
+      const res = await fetch("/api/nequi-payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rifa_id: rifaId,
+          reserva_ids: reservaIds,
+          payment_method_type: paymentMethodType,
+          numbers,
+          amount: Number(amount.toFixed(2)),
+          voucher_image_url: voucherUrl,
+          voucher_reference: reference.trim().slice(0, 80) || null,
+          payer_phone: payerPhone.trim().slice(0, 15) || null
+        })
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
       };
-      const { error } = await (supabase.from("nequi_payments") as any).insert(payload);
-      if (error) throw error;
+      if (!res.ok || !json.ok) throw new Error(json.error || "No se pudo enviar el comprobante.");
       setDone(true);
       setMsg(
         "¡Comprobante enviado! El creador de la rifa lo revisará en breve. Cuando lo apruebe tus números quedarán confirmados como pagados."

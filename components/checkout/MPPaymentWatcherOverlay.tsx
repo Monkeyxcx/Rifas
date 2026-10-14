@@ -11,10 +11,14 @@ import { showConfirm, showSuccess, showWarning } from "@/lib/ui/modals";
 type ReservaStatusResp = {
   ok: boolean;
   reserva_id?: string;
+  reserva_ids?: string[];
   rifa_id?: string;
   rifa_title?: string | null;
   rifa_number_price?: number | null;
   status?: "reserved" | "paid" | "cancelled" | "expired" | "refunded";
+  statuses?: Array<{ id: string; number: string; status: string }>;
+  paid_count?: number;
+  total_count?: number;
   expires_at?: string;
   numbers?: string[];
   pago?: null | {
@@ -74,13 +78,22 @@ export default function MPPaymentWatcherOverlay({
     setUiState("polling");
     let cancelled = false;
     let attempts = 0;
-    const MAX_ATTEMPTS = 60 * 5; // 5min con interval 2s
+    // P0-perf: backoff progresivo (antes fijo 2s x 300 = ~150 reqs en 5min).
+    // Ahora ~45 reqs en ~3.5min: 2s x10, 4s x15, 8s x20. Pausa si pestaña oculta.
+    const MAX_ATTEMPTS = 45;
+    const delayFor = (n: number) => (n <= 10 ? 2000 : n <= 25 ? 4000 : 8000);
     const tick = async () => {
       if (cancelled) return;
+      if (typeof document !== "undefined" && document.hidden) {
+        if (!cancelled) setTimeout(tick, 5000);
+        return;
+      }
       try {
         attempts += 1;
         setPollCount(attempts);
-        const resp = await fetch(`/api/reservas/${encodeURIComponent(reservaId)}/status`, {
+        // P0-5: pasa numbers explícitos para resolver el bundle sin ventana ±10s.
+        const qs = numbers.length ? `?numbers=${encodeURIComponent(numbers.join(","))}` : "";
+        const resp = await fetch(`/api/reservas/${encodeURIComponent(reservaId)}/status${qs}`, {
           method: "GET",
           credentials: "include",
           cache: "no-store",
@@ -122,7 +135,7 @@ export default function MPPaymentWatcherOverlay({
         console.warn("[MPWatcher] poll error", e);
       } finally {
         if (!cancelled && attempts < MAX_ATTEMPTS) {
-          setTimeout(tick, 2000);
+          setTimeout(tick, delayFor(attempts + 1));
         } else if (!cancelled) {
           setUiState("error");
         }

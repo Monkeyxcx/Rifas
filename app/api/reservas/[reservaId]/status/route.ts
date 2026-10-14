@@ -13,11 +13,21 @@ export const revalidate = 0;
 // (que NO funciona en localhost testing sandbox).
 // ======================================================
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ reservaId: string }> }
 ) {
   try {
     const { reservaId } = await params;
+    const url = new URL(req.url);
+    // P0-5: el bundle puede pedirse explícito para no depender de ventana ±10s.
+    const qIds = (url.searchParams.get("reserva_ids") || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => /^[0-9a-fA-F-]{36}$/.test(s));
+    const qNumbers = (url.searchParams.get("numbers") || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => /^\d{2}$/.test(s));
     const uuidRe = /^[0-9a-fA-F-]{36}$/;
     if (!uuidRe.test(reservaId)) {
       return NextResponse.json(
@@ -65,15 +75,19 @@ export async function GET(
       net_received_amount?: number; created_at?: string;
     };
     let lastPago: PagoRow | null = null;
+    let lastPagos: PagoRow[] = [];
     try {
+      // P0-5: buscar pagos del bundle (IN), no solo de la primera reserva.
+      const pagoIds = qIds.length ? qIds : [reservaId];
       const { data: pagos } = await sb
         .from("pagos")
         .select("id,mercado_pago_payment_id,status,amount,fee_amount,net_received_amount,created_at")
-        .eq("reserva_id", reservaId)
+        .in("reserva_id", pagoIds)
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(10);
       const arr = (pagos ?? []) as unknown[];
       if (arr[0]) lastPago = arr[0] as PagoRow;
+      lastPagos = arr as PagoRow[];
     } catch { /* ignore */ }
 
     // Rifa info básica
@@ -89,44 +103,71 @@ export async function GET(
       if (arr[0]) rifa = arr[0] as RifaBasic;
     } catch { /* ignore */ }
 
-    // Números del mismo bundle (agrupación lógica)
+    // Números del mismo bundle (P0-5: explícito primero, ventana solo fallback)
     let numbersArr: string[] = [r.number];
+    let bundleRows: Array<{ id: string; number: string; status: string }> = [
+      { id: r.id, number: r.number, status: r.status }
+    ];
     try {
-      if (r.status === "paid") {
+      if (qIds.length > 1 || qNumbers.length > 1) {
         const { data: rows } = await sb
           .from("reservas")
-          .select("number")
+          .select("id,number,status")
+          .eq("rifa_id", r.rifa_id)
+          .eq("user_id", userId)
+          .in(qIds.length > 1 ? "id" : "number", (qIds.length > 1 ? qIds : qNumbers) as string[]);
+        const arr = ((rows ?? []) as Array<{ id: string; number: string; status: string }>);
+        if (arr.length) {
+          bundleRows = arr;
+          numbersArr = arr.map((x) => x.number);
+        }
+      } else if (r.status === "paid") {
+        const { data: rows } = await sb
+          .from("reservas")
+          .select("id,number,status")
           .eq("rifa_id", r.rifa_id)
           .eq("user_id", userId)
           .eq("status", "paid");
-        const arr = (rows ?? []) as { number: string }[];
-        if (arr.length) numbersArr = arr.map(x => x.number);
+        const arr = (rows ?? []) as Array<{ id: string; number: string; status: string }>;
+        if (arr.length) {
+          bundleRows = arr;
+          numbersArr = arr.map(x => x.number);
+        }
       } else {
         const since = new Date(new Date(r.created_at).getTime() - 10_000).toISOString();
         const until = new Date(new Date(r.created_at).getTime() + 10_000).toISOString();
         const { data: rows } = await sb
           .from("reservas")
-          .select("number")
+          .select("id,number,status")
           .eq("rifa_id", r.rifa_id)
           .eq("user_id", userId)
           .gte("created_at", since)
           .lte("created_at", until);
-        const arr = (rows ?? []) as { number: string }[];
-        if (arr.length > 1) numbersArr = arr.map(x => x.number);
+        const arr = (rows ?? []) as Array<{ id: string; number: string; status: string }>;
+        if (arr.length > 1) {
+          bundleRows = arr;
+          numbersArr = arr.map(x => x.number);
+        }
       }
     } catch { /* fallback single number */ }
 
+    const paidCount = bundleRows.filter((b) => b.status === "paid").length;
     return NextResponse.json(
       {
         ok: true,
         reserva_id: r.id,
+        reserva_ids: bundleRows.map((b) => b.id),
         rifa_id: r.rifa_id,
         rifa_title: rifa?.title ?? null,
         rifa_number_price: rifa?.number_price ?? null,
-        status: r.status,
+        status: paidCount === bundleRows.length && bundleRows.length ? "paid" : r.status,
+        statuses: bundleRows,
+        paid_count: paidCount,
+        total_count: bundleRows.length,
         expires_at: r.expires_at,
         numbers: numbersArr,
         pago: lastPago,
+        pagos: lastPagos,
         ts: new Date().toISOString()
       },
       { status: 200 }

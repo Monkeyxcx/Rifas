@@ -11,7 +11,31 @@ export const revalidate = 0;
 const EMAIL_RE =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 
+// P0: throttle anti-enumeración (oráculo credential-stuffing).
+// 30 req/min por IP en memoria (primera capa; en edge multi-instancia
+// complementar con rate-limit de Vercel/WAF).
+const hits = new Map<string, number[]>();
+function throttled(ip: string): boolean {
+  const now = Date.now();
+  const arr = (hits.get(ip) ?? []).filter((t) => now - t < 60_000);
+  arr.push(now);
+  hits.set(ip, arr);
+  if (hits.size > 2000) {
+    const first = hits.keys().next().value as string | undefined;
+    if (first) hits.delete(first);
+  }
+  return arr.length > 30;
+}
+
 export async function GET(req: NextRequest) {
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (throttled(ip)) {
+    return NextResponse.json(
+      { ok: false, error: "demasiadas consultas, intenta en un minuto", exists: false },
+      { status: 429, headers: { "Retry-After": "60" } }
+    );
+  }
   const params = req.nextUrl.searchParams;
   const email = (params.get("email") || "").trim().toLowerCase();
   if (!email || !EMAIL_RE.test(email)) {

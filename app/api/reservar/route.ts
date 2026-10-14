@@ -312,7 +312,10 @@ export async function POST(req: Request) {
     // El RPC buy_reservations insertó N rows. Buscamos esas rows recién creadas por
     // (rifa_id, user_id, numbers, created_at ±10s) y usamos el PRIMER id real como
     // reserva_id canónico. Así polling /status, checkout y FK pagos.reserva_id MATCH.
+    // P0-5: recuperar TODOS los IDs reales (bundle), no solo el primero.
+    // Antes solo se devolvía el primer id y el polling / pagos solo veían 1 número.
     let reservaIdReal: string = reservaId; // fallback sintético si falla lookup
+    let reservaIdsReales: string[] = [];
     const supabaseLookup = await createClient();
     try {
       const windowStart = new Date(Date.now() - 15_000).toISOString();
@@ -326,10 +329,12 @@ export async function POST(req: Request) {
         .in("number", numbers)
         .gte("created_at", windowStart)
         .order("created_at", { ascending: true });
-      const arr = (justInserted ?? []) as unknown[];
+      const arr = ((justInserted ?? []) as Array<{ id: string; number: string }>);
       if (arr.length) {
-        const first = arr[0] as { id: string };
-        reservaIdReal = first.id;
+        // Ordenar por el orden de numbers solicitado para bundle determinista
+        const byNumber = new Map(arr.map((r) => [r.number, r.id]));
+        reservaIdsReales = numbers.map((n) => byNumber.get(n)).filter(Boolean) as string[];
+        if (reservaIdsReales.length) reservaIdReal = reservaIdsReales[0];
       }
     } catch (lookupErr) {
       console.warn("[reservar] lookup ids reales fallback sintético", lookupErr);
@@ -340,6 +345,7 @@ export async function POST(req: Request) {
         ok: true,
         mock_mode: false,
         reserva_id: reservaIdReal,
+        reserva_ids: reservaIdsReales.length ? reservaIdsReales : [reservaIdReal],
         rifa_id: rifaId,
         user_id: userId,
         numbers,

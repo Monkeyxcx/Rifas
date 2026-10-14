@@ -102,6 +102,25 @@ async function handleCreatorFeePayment(params: {
   ]);
 
   if (FINAL_APPROVED.has(status as string)) {
+    // P0-1: verificar monto del fee antes de aprobar. Evita desbloquear
+    // ventas pagando $1 con metadata válida.
+    const paidAmount = Number(payment.transaction_amount ?? 0);
+    if (!Number.isFinite(paidAmount) || paidAmount < feeState.fee_amount) {
+      console.error(
+        `[mercadopago/webhook] creator_fee amount_mismatch pago=${payment.id} paid=${paidAmount} expected=${feeState.fee_amount}`
+      );
+      return NextResponse.json(
+        {
+          ok: true,
+          received: true,
+          creator_fee: true,
+          status: "amount_mismatch",
+          warning: `monto insuficiente: pagado ${paidAmount}, esperado ${feeState.fee_amount}`,
+          rifa_id: rifaId
+        },
+        { status: 200 }
+      );
+    }
     await (sb.from("creator_fee_charges") as any)
       .update({
         status: "approved",
@@ -167,21 +186,40 @@ export async function POST(req: NextRequest) {
   }
 
   // 1. Signature validation
-  // B#23 FIX: En entornos NO productivos, si el payload trae campo "_mock" inline
-  // (E2E testing / curl manual), bypassear la validación de firma HMAC y usar
-  // el mock como payment autoritativo directamente para no requerir MP API.
+  // P0-4: _mock inline solo con opt-in explícito + secreto. Antes cualquier
+  // túnel dev expuesto aceptaba tickets gratis con {"_mock":{...}}.
+  // Requiere: ALLOW_MP_MOCK=1 + NODE_ENV!=production + header x-mock-secret
+  // igual a MP_MOCK_SECRET (>=16 chars).
   let payloadRawParsed: Record<string, unknown> | null = null;
   try {
     if (rawBody.length) payloadRawParsed = JSON.parse(rawBody) as Record<string, unknown>;
   } catch {
     payloadRawParsed = null;
   }
-  const isMockPayload =
-    process.env.NODE_ENV !== "production" &&
+  const mockAllowed =
+    process.env.ALLOW_MP_MOCK === "1" && process.env.NODE_ENV !== "production";
+  const mockSecret = process.env.MP_MOCK_SECRET || "";
+  const providedMockSecret =
+    req.headers.get("x-mock-secret") ||
+    req.nextUrl.searchParams.get("mock_secret") ||
+    "";
+  const mockAuthOk =
+    mockAllowed && mockSecret.length >= 16 && providedMockSecret === mockSecret;
+  const hasMockField =
     payloadRawParsed !== null &&
     typeof (payloadRawParsed as Record<string, unknown>)._mock === "object" &&
     (payloadRawParsed as Record<string, unknown>)._mock !== null;
-  const hasMockInline = Boolean(isMockPayload);
+  if (hasMockField && !mockAuthOk) {
+    const fwd = req.headers.get("x-forwarded-for") || "unknown";
+    console.warn(
+      `[mercadopago/webhook] _mock no autorizado rechazado 401 ip=${fwd} mockAllowed=${mockAllowed}`
+    );
+    return NextResponse.json(
+      { ok: false, error: "mock no autorizado" },
+      { status: 401 }
+    );
+  }
+  const hasMockInline = Boolean(hasMockField && mockAuthOk);
 
   if (hasMockInline) {
     console.warn(
@@ -254,8 +292,7 @@ export async function POST(req: NextRequest) {
   const mockPayment = (payload as Record<string, unknown>)._mock as
     | MPPayment
     | undefined;
-  // B#23 FIX: Si el request trae _mock inline (dev testing), LO USAMOS DIRECTAMENTE
-  // como fuente de verdad SIN llamar mpPayment.get() ni requerir la API real.
+  // B#23 FIX endurecido P0-4: _mock solo si mockAuthOk (ALLOW_MP_MOCK + secreto).
   if (hasMockInline && mockPayment) {
     console.warn(
       `[mercadopago/webhook] usando _mock inline como payment ${paymentId ?? "inline"} E2E testing.`
@@ -268,9 +305,8 @@ export async function POST(req: NextRequest) {
       } as unknown as Parameters<typeof mpPayment.get>[0]);
       payment = mpResp as unknown as MPPayment;
     } catch (err) {
-      // FALLBACK E2E: si el payload trae _mock (pruebas e2e o webhook forwarding)
-      // y el lookup real falla, usamos ese mock como payment autoritativo.
-      if (mockPayment && typeof mockPayment === "object") {
+      // FALLBACK E2E solo si mockAuthOk; si no, no usar mock como autoritativo.
+      if (mockAuthOk && mockPayment && typeof mockPayment === "object") {
         console.warn(
           `[mercadopago/webhook] mpPayment.get ${paymentId} falló, usando _mock body fallback (E2E testing).`
         );
@@ -456,6 +492,56 @@ export async function POST(req: NextRequest) {
         );
       } else {
         try {
+          // P0-1: verificación de monto antes de marcar paid. Recalcula
+          // esperado desde DB (numbers * number_price) y rechaza si
+          // transaction_amount es insuficiente. Evita confirmar tickets con $1.
+          if ((status as string) === "approved" && numbers.length && rifaIdRaw) {
+            const { data: rifaPriceRow } = await sb
+              .from("rifas")
+              .select("id, number_price")
+              .eq("id", rifaIdRaw)
+              .maybeSingle();
+            const unitPriceDb = Number(
+              (rifaPriceRow as unknown as { number_price?: number } | null)?.number_price ?? 0
+            );
+            const expectedAmount = numbers.length * unitPriceDb;
+            if (!Number.isFinite(unitPriceDb) || unitPriceDb <= 0 || totalAmount < expectedAmount) {
+              console.error(
+                `[mercadopago/webhook] amount_mismatch pago=${payment.id} paid=${totalAmount} expected=${expectedAmount} n=${numbers.length} unit=${unitPriceDb}`
+              );
+              // Trazabilidad: guarda el pago pero NO toca reservas.
+              try {
+                await q(
+                  sb.from("pagos").insert({
+                    id: generateUUID(),
+                    rifa_id: rifaIdRaw,
+                    user_id,
+                    reserva_id: null,
+                    mercado_pago_payment_id: String(payment.id ?? ""),
+                    mercado_pago_preference_id: null,
+                    external_reference: externalReference || null,
+                    status,
+                    amount: totalAmount,
+                    fee_amount: feeAmount,
+                    net_received_amount: netAmount,
+                    payment_method: payment.payment_method_id ?? null,
+                    payment_type: payment.payment_type_id ?? null,
+                    installments: payment.installments ?? 1,
+                    payer_email: payerEmail,
+                    mercado_pago_raw: { ...payment, _amount_mismatch: { expected: expectedAmount, paid: totalAmount } },
+                    paid_at: payment.date_approved ?? null
+                  })
+                );
+              } catch { /* best-effort */ }
+              sideEffectsOk = false;
+              sideEffectsErrMsg = `amount_mismatch: pagado ${totalAmount}, esperado ${expectedAmount}`;
+              httpStatusOverride = 200;
+              // Salta el resto de side-effects: no marcar paid.
+              // Usamos throw controlado para salir al catch clasificador
+              // sin marcar como transient (ya seteamos override 200).
+              throw { code: "AMOUNT_MISMATCH", message: sideEffectsErrMsg };
+            }
+          }
           // FIX B#31: Si reservaIdRaw no resolvió (sintético no match), pero sí
           // tenemos user_id + rifa + numbers, buscamos el id de reserva REAL
           // para insertarlo en pagos.reserva_id (ahora FK dropeada en 0005, pero

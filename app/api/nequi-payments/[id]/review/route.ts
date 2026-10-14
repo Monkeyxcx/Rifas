@@ -111,9 +111,25 @@ export async function POST(req: NextRequest, { params }: any) {
       );
     }
 
+    // P0-3: validar monto esperado (price * N) antes de aprobar.
+    const voucherNumbers = Array.isArray(voucher.numbers) ? voucher.numbers : [];
+    const expectedAmount = voucherNumbers.length * Number(rifa.number_price ?? 0);
+    if (
+      !Number.isFinite(expectedAmount) ||
+      expectedAmount <= 0 ||
+      Number(voucher.amount ?? 0) < expectedAmount
+    ) {
+      return NextResponse.json(
+        {
+          error: `monto del comprobante insuficiente: esperado ${expectedAmount}, recibido ${voucher.amount}`
+        },
+        { status: 409 }
+      );
+    }
+
     const { data: reservaRowsRaw, error: reservasErr } = await (sb
       .from("reservas") as any)
-      .select("id, rifa_id, user_id, number, status")
+      .select("id, rifa_id, user_id, number, status, expires_at")
       .in("id", reservaIds);
     if (reservasErr) {
       return NextResponse.json({ error: reservasErr.message }, { status: 500 });
@@ -125,6 +141,7 @@ export async function POST(req: NextRequest, { params }: any) {
       user_id: string;
       number: string;
       status: string;
+      expires_at: string;
     }>;
 
     if (reservaRows.length !== reservaIds.length) {
@@ -134,17 +151,20 @@ export async function POST(req: NextRequest, { params }: any) {
       );
     }
 
+    // P0-3: solo reserved NO vencidas. No revivir expired/paid/cancelled.
+    const nowMs = Date.now();
     const invalidReserva = reservaRows.find(
       (r) =>
         r.user_id !== voucher.user_id ||
         r.rifa_id !== voucher.rifa_id ||
-        !["reserved", "paid", "expired"].includes(r.status)
+        r.status !== "reserved" ||
+        new Date(r.expires_at).getTime() <= nowMs
     );
     if (invalidReserva) {
       return NextResponse.json(
         {
           error:
-            "las reservas asociadas no estan en un estado valido para aprobar este pago"
+            "las reservas asociadas no estan en un estado valido para aprobar (deben estar reserved y no vencidas)"
         },
         { status: 409 }
       );
@@ -154,7 +174,8 @@ export async function POST(req: NextRequest, { params }: any) {
       .from("reservas") as any)
       .update({ status: "paid" })
       .in("id", reservaIds)
-      .in("status", ["reserved", "paid", "expired"])
+      .eq("status", "reserved")
+      .gt("expires_at", new Date().toISOString())
       .select("id, number");
     if (reservasUpErr) {
       return NextResponse.json({ error: reservasUpErr.message }, { status: 500 });
@@ -175,10 +196,19 @@ export async function POST(req: NextRequest, { params }: any) {
       );
     }
 
-    const { error: upErr } = await (sb.from("nequi_payments") as any)
+    // P0-3: update atómico — solo si sigue pending (evita doble aprobación).
+    const { data: voucherUpdated, error: upErr } = await (sb.from("nequi_payments") as any)
       .update(payloadUpdate)
-      .eq("id", id);
+      .eq("id", id)
+      .eq("status", "pending")
+      .select("id");
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+    if (!voucherUpdated || (voucherUpdated as unknown[]).length === 0) {
+      return NextResponse.json(
+        { error: "el comprobante ya fue revisado por otro usuario" },
+        { status: 409 }
+      );
+    }
 
     const numbersArr = updatedReservas.map((r) => r.number);
 
@@ -225,10 +255,28 @@ export async function POST(req: NextRequest, { params }: any) {
     });
     await syncCreatorFeeStateForRifa(sb, voucher.rifa_id).catch(() => null);
   } else {
-    const { error: upErr } = await (sb.from("nequi_payments") as any)
+    // P0-3: rejected libera los números reserved y es atómico.
+    const reservaIdsRej = Array.isArray(voucher.reserva_ids)
+      ? voucher.reserva_ids.filter((r) => typeof r === "string")
+      : [];
+    if (reservaIdsRej.length) {
+      await (sb.from("reservas") as any)
+        .update({ status: "cancelled" })
+        .in("id", reservaIdsRej)
+        .eq("status", "reserved");
+    }
+    const { data: voucherRejUpdated, error: upErr } = await (sb.from("nequi_payments") as any)
       .update(payloadUpdate)
-      .eq("id", id);
+      .eq("id", id)
+      .eq("status", "pending")
+      .select("id");
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+    if (!voucherRejUpdated || (voucherRejUpdated as unknown[]).length === 0) {
+      return NextResponse.json(
+        { error: "el comprobante ya fue revisado por otro usuario" },
+        { status: 409 }
+      );
+    }
 
     // Rejected: notificar
     const paymentLabel = getManualPaymentNotificationLabel(
