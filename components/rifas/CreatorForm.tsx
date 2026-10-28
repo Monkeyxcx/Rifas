@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -12,8 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { showSuccess, showError, showWarning } from "@/lib/ui/modals";
-import { Heart, Trophy } from "lucide-react";
-import PrizeImageDropzone from "@/components/rifas/PrizeImageDropzone";
 
 import { cn, formatCurrency, generateRaffleNumbers, padRaffleNumber } from "@/lib/utils";
 import { calculateCreatorFeeAmount, CREATOR_FEE_THRESHOLD } from "@/lib/creator-fees";
@@ -65,15 +64,12 @@ const DEFAULT: CreatorFormState = {
   country: "Colombia"
 };
 
-function isoDateTimeInput(offsetDays = 7, hour = 20, minute = 0) {
+function isoDateInput(offsetDays = 7) {
   const d = new Date(Date.now() + offsetDays * 86_400_000);
-  d.setHours(hour, minute, 0, 0);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  const h = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${y}-${m}-${day}T${h}:${min}`;
+  return `${y}-${m}-${day}`;
 }
 
 function escapeHtml(s: string) {
@@ -90,8 +86,8 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
   const [stepKey, setStepKey] = useState<StepKey>("datos");
   const [form, setForm] = useState<CreatorFormState>({
     ...DEFAULT,
-    ends_at_date: isoDateTimeInput(14, 20, 0),
-    draw_date_date: isoDateTimeInput(15, 19, 0)
+    ends_at_date: isoDateInput(14),
+    draw_date_date: isoDateInput(15)
   });
   const [submitting, setSubmitting] = useState(false);
   const [loadingData, setLoadingData] = useState<boolean>(false);
@@ -164,8 +160,8 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
     const gross = total * form.number_price;
     const soldSample = Math.floor(total * 0.28);
     const numbers = generateRaffleNumbers(total);
-    const ends_at = form.ends_at_date ? new Date(form.ends_at_date).toISOString() : null;
-    const draw_date = form.draw_date_date ? new Date(form.draw_date_date).toISOString() : null;
+    const ends_at = form.ends_at_date ? new Date(form.ends_at_date + "T20:00:00").toISOString() : null;
+    const draw_date = form.draw_date_date ? new Date(form.draw_date_date + "T19:00:00").toISOString() : null;
     const mock: Rifa = {
       id: editingId || "preview",
       creator_id: "me",
@@ -211,18 +207,6 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function updateNumber(
-    key: "prize_value" | "cause_target" | "number_price" | "total_numbers",
-    raw: string
-  ) {
-    if (raw === "") {
-      update(key, 0 as CreatorFormState[typeof key]);
-      return;
-    }
-    const n = Number(raw);
-    if (Number.isFinite(n)) update(key, n as CreatorFormState[typeof key]);
-  }
-
   function stepIndex(key: StepKey) {
     return STEPS.findIndex((s) => s.key === key);
   }
@@ -263,9 +247,9 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
         const drawOk = !!form.draw_date_date;
         const instrOk = form.draw_instructions.trim().length >= 10;
         if (!(endsOk && drawOk && instrOk)) return false;
-        const ends = new Date(form.ends_at_date).getTime();
-        const draw = new Date(form.draw_date_date).getTime();
-        return Number.isFinite(ends) && Number.isFinite(draw) && draw > ends;
+        const ends = new Date(form.ends_at_date + "T20:00:00").getTime();
+        const draw = new Date(form.draw_date_date + "T19:00:00").getTime();
+        return draw > ends;
       }
     }
   }
@@ -347,7 +331,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
       }
       const rid = json.rifa_id ?? json.rifa?.id;
       void showSuccess({
-        title: isEditing ? "¡Rifa actualizada!" : "¡Rifa creada!",
+        title: isEditing ? "¡Rifa actualizada! 🎉" : "¡Rifa creada! 🎉",
         html: isEditing
           ? "Los cambios se guardaron correctamente. Redirigiendo…"
           : `Tu rifa <b>${escapeHtml(form.title)}</b> está lista y visible. Redirigiendo…`,
@@ -373,10 +357,10 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
       className="grid gap-8 lg:grid-cols-5 relative"
     >
       {loadingData && (
-        <div className="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-white/70 backdrop-blur-[2px] rounded-2xl dark:bg-slate-950/80">
+        <div className="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-white/70 backdrop-blur-[2px] rounded-2xl">
           <div className="flex flex-col items-center gap-2">
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-rose border-t-transparent" />
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Cargando datos de la rifa…</p>
+            <p className="text-sm font-semibold text-slate-700">Cargando datos de la rifa…</p>
           </div>
         </div>
       )}
@@ -395,10 +379,10 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                       className={cn(
                         "w-full text-left rounded-xl border p-3 transition",
                         active
-                          ? "border-transparent bg-gradient-cta text-white shadow-cta"
+                          ? "border-transparent bg-gradient-to-r from-brand-rose to-brand-violet text-white shadow-cta"
                           : done
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                       )}
                     >
                       <div className="flex items-center gap-2">
@@ -409,7 +393,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                               ? "bg-white/20 text-white"
                               : done
                               ? "bg-emerald-500 text-white"
-                              : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                              : "bg-slate-100 text-slate-500"
                           )}
                         >
                           {done ? "✓" : idx + 1}
@@ -488,17 +472,40 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
 
             {stepKey === "premio" && (
               <>
-                <div>
-                  <h3 className="font-display font-bold text-xl text-slate-900">
-                    Premio a sortear
-                  </h3>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Describe bien el premio. Si es solidaria, indícalo abajo y completa los datos de la causa.
-                  </p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-display font-bold text-xl text-slate-900">
+                      Premio a sortear
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-1">
+                      Describelo bien. Si es solidaria, activa el toggle y agrega la causa.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.is_solidarity}
+                    aria-label={form.is_solidarity ? "Desactivar rifa solidaria" : "Activar rifa solidaria"}
+                    onClick={() => update("is_solidarity", !form.is_solidarity)}
+                    className={cn(
+                      "relative inline-flex h-9 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-rose focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                      form.is_solidarity
+                        ? "bg-gradient-to-r from-brand-cyan to-brand-rose"
+                        : "bg-slate-200"
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "pointer-events-none block h-8 w-8 rounded-full bg-white shadow-lg ring-0 transition-transform",
+                        form.is_solidarity ? "translate-x-7" : "translate-x-0"
+                      )}
+                    />
+                  </button>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2">
                     <Label>
                       Nombre del premio <span className="text-brand-rose">*</span>
                     </Label>
@@ -517,114 +524,108 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                       type="number"
                       min={50000}
                       step={50000}
-                      value={form.prize_value || ""}
-                      onChange={(e) => updateNumber("prize_value", e.target.value)}
+                      value={form.prize_value}
+                      onChange={(e) => update("prize_value", Number(e.target.value))}
                     />
                     <div className="text-xs text-slate-400">Mínimo $ 50.000</div>
                   </div>
-                  <div className="space-y-2 md:col-span-2 flex flex-col items-center">
-                    <Label className="!mb-0 text-center">Imagen del premio</Label>
-                    <PrizeImageDropzone
+                  <div className="space-y-2">
+                    <Label>URL imagen del premio</Label>
+                    <Input
+                      type="url"
+                      placeholder="https://tudominio.com/foto-premio.jpg"
                       value={form.prize_image_url}
-                      onChange={(url) => update("prize_image_url", url)}
-                      className="w-full"
+                      onChange={(e) => update("prize_image_url", e.target.value)}
                     />
+                    {form.prize_image_url ? (
+                      <div className="flex aspect-video rounded-xl border border-slate-200 bg-white overflow-hidden relative">
+                        <Image
+                          src={form.prize_image_url}
+                          alt="Vista previa premio"
+                          fill
+                          sizes="(max-width: 1024px) 100vw, 50vw"
+                          className="object-cover"
+                          onError={(e) => {
+                            const el = e.target as HTMLImageElement | null;
+                            if (el && "style" in el) el.style.display = "none";
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex aspect-video rounded-xl border-2 border-dashed border-slate-200 bg-gradient-to-br from-brand-rose/5 via-white to-brand-violet/5 place-items-center grid text-slate-400 text-sm">
+                        📷 Pega el enlace de la imagen del premio (proximamente upload)
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <Separator />
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-5 space-y-4 text-center">
-                  <div>
-                    <p className="font-display font-bold text-base text-slate-900">
-                      ¿La rifa es solidaria?
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Elige sí si destinarás parte o toda la recaudación a una causa.
-                    </p>
+                <div
+                  className={cn(
+                    "rounded-xl p-5 transition",
+                    form.is_solidarity
+                      ? "bg-gradient-to-br from-brand-cyan/10 via-transparent to-brand-rose/10 border border-brand-cyan/20"
+                      : "bg-slate-50/50 border border-dashed border-slate-200"
+                  )}
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <Badge
+                      variant={form.is_solidarity ? "solidarity" : "outline"}
+                      className="uppercase tracking-wider text-[10px]"
+                    >
+                      {form.is_solidarity
+                        ? "✓ Rifas solidarias ON"
+                        : "Modo solidaria OFF"}
+                    </Badge>
+                    <div className="text-xs text-slate-500">
+                      {form.is_solidarity
+                        ? "Los participantes verán tu causa y el % que se dona."
+                        : "Actívalo si quieres destinar parte o toda la recaudación a una causa."}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => update("is_solidarity", true)}
-                      className={cn(
-                        "inline-flex h-10 min-w-[96px] items-center justify-center rounded-lg border px-4 text-sm font-semibold transition",
-                        form.is_solidarity
-                          ? "border-transparent bg-gradient-to-r from-brand-cyan to-brand-rose text-white shadow-sm"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                      )}
-                    >
-                      Sí
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setForm((prev) => ({
-                          ...prev,
-                          is_solidarity: false,
-                          cause_name: "",
-                          cause_description: "",
-                          cause_target: 0
-                        }));
-                      }}
-                      className={cn(
-                        "inline-flex h-10 min-w-[96px] items-center justify-center rounded-lg border px-4 text-sm font-semibold transition",
-                        !form.is_solidarity
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                      )}
-                    >
-                      No
-                    </button>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>
+                        Nombre de la causa / fundación
+                        {form.is_solidarity && (
+                          <span className="text-brand-rose"> *</span>
+                        )}
+                      </Label>
+                      <Input
+                        disabled={!form.is_solidarity}
+                        placeholder="Ej: Fundación Unidos por los Niños A.C."
+                        value={form.cause_name}
+                        onChange={(e) => update("cause_name", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Descripción de la causa</Label>
+                      <Textarea
+                        rows={3}
+                        disabled={!form.is_solidarity}
+                        placeholder="A qué va destinado el dinero, cuántas familias se benefician, fotos que publicarás después…"
+                        value={form.cause_description}
+                        onChange={(e) => update("cause_description", e.target.value)}
+                        maxLength={400}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Meta de recaudación (COP)</Label>
+                      <Input
+                        type="number"
+                        disabled={!form.is_solidarity}
+                        min={0}
+                        step={50000}
+                        value={form.cause_target}
+                        onChange={(e) => update("cause_target", Number(e.target.value))}
+                      />
+                      <div className="text-xs text-slate-400">
+                        Meta visible en la rifa (opcional)
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                {form.is_solidarity && (
-                  <div className="rounded-xl border border-brand-cyan/20 bg-gradient-to-br from-brand-cyan/10 via-transparent to-brand-rose/10 p-5 space-y-4">
-                    <div>
-                      <p className="font-semibold text-slate-800">Datos de la causa</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        Los participantes verán esta información en la rifa.
-                      </p>
-                    </div>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>
-                          Nombre de la causa / fundación
-                          <span className="text-brand-rose"> *</span>
-                        </Label>
-                        <Input
-                          placeholder="Ej: Fundación Unidos por los Niños A.C."
-                          value={form.cause_name}
-                          onChange={(e) => update("cause_name", e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>Descripción de la causa</Label>
-                        <Textarea
-                          rows={3}
-                          placeholder="A qué va destinado el dinero, cuántas familias se benefician, fotos que publicarás después…"
-                          value={form.cause_description}
-                          onChange={(e) => update("cause_description", e.target.value)}
-                          maxLength={400}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Meta de recaudación (COP)</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          step={50000}
-                          value={form.cause_target || ""}
-                          onChange={(e) => updateNumber("cause_target", e.target.value)}
-                        />
-                        <div className="text-xs text-slate-400">
-                          Meta visible en la rifa (opcional)
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </>
             )}
 
@@ -684,8 +685,8 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                       type="number"
                       min={1000}
                       step={1000}
-                      value={form.number_price || ""}
-                      onChange={(e) => updateNumber("number_price", e.target.value)}
+                      value={form.number_price}
+                      onChange={(e) => update("number_price", Number(e.target.value))}
                     />
                     <div className="grid grid-cols-4 gap-1.5">
                       {[5000, 10000, 25000, 50000].map((p) => (
@@ -697,7 +698,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                             "rounded-lg border px-1.5 py-1 text-[11px] font-medium transition",
                             form.number_price === p
                               ? "border-transparent bg-gradient-to-r from-brand-rose to-brand-violet text-white shadow-cta"
-                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                           )}
                         >
                           {p / 1000}k
@@ -786,7 +787,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                             "h-9 rounded-md text-[11px] font-semibold leading-none grid place-items-center",
                             sold
                               ? "bg-slate-100 text-slate-300 line-through"
-                              : "bg-white border border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200"
+                              : "bg-white border border-slate-200 text-slate-700"
                           )}
                         >
                           {n}
@@ -816,15 +817,15 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>
-                      Fecha y hora límite de venta <span className="text-brand-rose">*</span>
+                      Fecha límite de venta <span className="text-brand-rose">*</span>
                     </Label>
                     <Input
-                      type="datetime-local"
+                      type="date"
                       value={form.ends_at_date}
                       onChange={(e) => update("ends_at_date", e.target.value)}
                     />
                     <div className="text-xs text-slate-400">
-                      Después de este momento ya no se podrán comprar números
+                      Los participantes ya no podrán comprar después de este día a las 20:00
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -832,12 +833,12 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                       Fecha y hora del sorteo <span className="text-brand-rose">*</span>
                     </Label>
                     <Input
-                      type="datetime-local"
+                      type="date"
                       value={form.draw_date_date}
                       onChange={(e) => update("draw_date_date", e.target.value)}
                     />
                     <div className="text-xs text-slate-400">
-                      Debe ser posterior al cierre de ventas
+                      Día del sorteo público, 19:00. Debe ser ≥ cierre o posterior.
                     </div>
                   </div>
                 </div>
@@ -861,7 +862,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                   <Card className="bg-gradient-to-br from-slate-50 to-white border border-slate-200">
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                        Método de sorteo sugerido
+                        🎲 Método de sorteo sugerido
                       </div>
                       <ul className="mt-3 space-y-1.5 text-sm text-slate-600">
                         <li>• En vivo por Instagram / TikTok / YouTube</li>
@@ -873,7 +874,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                   <Card className="bg-gradient-to-br from-brand-cyan/5 via-white to-brand-rose/5 border border-slate-200">
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                        Transparencia (nuestro compromiso)
+                        🛡️ Transparencia (nuestro compromiso)
                       </div>
                       <ul className="mt-3 space-y-1.5 text-sm text-slate-600">
                         <li>• Publicamos lista oficial de números</li>
@@ -916,10 +917,10 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                 {stepKey === "fechas" &&
                   form.ends_at_date &&
                   form.draw_date_date &&
-                  new Date(form.draw_date_date).getTime() <=
-                    new Date(form.ends_at_date).getTime() && (
+                  new Date(form.draw_date_date + "T19:00:00").getTime() <=
+                    new Date(form.ends_at_date + "T20:00:00").getTime() && (
                     <div className="text-xs font-semibold text-destructive bg-destructive/10 border border-destructive/20 rounded-xl px-3 py-2 max-w-sm">
-                      La fecha/hora del sorteo debe ser posterior al cierre de ventas.
+                      ⚠ La fecha del sorteo debe ser posterior al cierre de ventas.
                     </div>
                   )}
                 <Button
@@ -966,37 +967,35 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
       </div>
 
       <aside className="lg:col-span-2 space-y-4 lg:sticky lg:top-24 self-start">
-        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-white overflow-hidden shadow-sm dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900">
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-white overflow-hidden shadow-sm">
           <div
             className={cn(
               "relative aspect-[4/3] overflow-hidden",
               form.prize_image_url
-                ? "bg-slate-100 dark:bg-slate-800"
+                ? "bg-slate-100"
                 : projected.mock.is_solidarity
                   ? "bg-gradient-to-br from-brand-cyan via-cyan-500 to-brand-rose"
                   : "bg-gradient-to-br from-brand-rose via-pink-500 to-brand-violet"
             )}
           >
             {form.prize_image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={form.prize_image_url}
                 alt="Premio"
-                className="absolute inset-0 h-full w-full object-cover"
+                fill
+                sizes="(max-width: 1024px) 100vw, 40vw"
+                className="object-cover"
                 onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                  const el = e.target as HTMLImageElement | null;
+                  if (el && "style" in el) el.style.display = "none";
                 }}
               />
             ) : null}
             <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] [background-size:18px_18px]" />
             {!form.prize_image_url && (
               <div className="absolute inset-0 grid place-items-center">
-                <div className="h-20 w-20 rounded-3xl bg-white/20 backdrop-blur grid place-items-center">
-                  {projected.mock.is_solidarity ? (
-                    <Heart className="h-10 w-10 text-white" strokeWidth={2} />
-                  ) : (
-                    <Trophy className="h-10 w-10 text-white" strokeWidth={2} />
-                  )}
+                <div className="h-20 w-20 rounded-3xl bg-white/20 backdrop-blur grid place-items-center text-4xl">
+                  {projected.mock.is_solidarity ? "💝" : "🏆"}
                 </div>
               </div>
             )}
@@ -1066,7 +1065,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                   País
                 </div>
                 <div className="font-semibold text-slate-800 flex items-center gap-1.5">
-                  {form.country || "—"}
+                  📍 {form.country || "—"}
                 </div>
               </div>
               <div>
@@ -1075,11 +1074,9 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                 </div>
                 <div className="font-semibold text-slate-800">
                   {form.ends_at_date
-                    ? new Date(form.ends_at_date).toLocaleString("es-ES", {
+                    ? new Date(form.ends_at_date).toLocaleDateString("es-ES", {
                         day: "2-digit",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit"
+                        month: "short"
                       })
                     : "—"}
                 </div>
@@ -1090,11 +1087,9 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                 </div>
                 <div className="font-semibold text-slate-800">
                   {form.draw_date_date
-                    ? new Date(form.draw_date_date).toLocaleString("es-ES", {
+                    ? new Date(form.draw_date_date).toLocaleDateString("es-ES", {
                         day: "2-digit",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit"
+                        month: "short"
                       })
                     : "—"}
                 </div>
@@ -1104,7 +1099,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
             {projected.mock.is_solidarity && form.cause_name && (
               <div className="rounded-xl border border-brand-cyan/20 bg-brand-cyan/5 p-3 space-y-1">
                 <div className="text-[11px] uppercase tracking-wider text-brand-cyan-700 font-bold">
-                  Causa solidaria
+                  💝 Causa solidaria
                 </div>
                 <div className="font-bold text-slate-800">{form.cause_name}</div>
                 {form.cause_target > 0 && (
@@ -1122,8 +1117,8 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
                   className={cn(
                     "h-7 rounded text-[10px] font-bold grid place-items-center",
                     i < Math.floor(projected.total * 0.28)
-                      ? "bg-slate-100 text-slate-300 dark:bg-slate-800 dark:text-slate-600"
-                      : "bg-gradient-to-br from-slate-50 to-white border border-slate-200 text-slate-700 dark:from-slate-800 dark:to-slate-800 dark:border-slate-600 dark:text-slate-200"
+                      ? "bg-slate-100 text-slate-300"
+                      : "bg-gradient-to-br from-slate-50 to-white border border-slate-200 text-slate-700"
                   )}
                 >
                   {n}
@@ -1138,7 +1133,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
               onClick={() => router.push(`/rifas/preview`)}
               disabled
             >
-              Ver página completa (proximamente)
+              🔍 Ver página completa (proximamente)
             </Button>
           </div>
         </div>
@@ -1146,7 +1141,7 @@ export default function CreatorForm({ editingId }: { editingId?: string | null }
         <Card className="border border-dashed border-slate-200 bg-slate-50/60">
           <CardContent className="p-4 text-xs space-y-2">
             <div className="font-semibold text-slate-700 flex items-center gap-2">
-              Consejo
+              💡 Consejo
             </div>
             <ul className="space-y-1 text-slate-500">
               <li>• Las rifas con foto del premio se venden 3x más.</li>

@@ -33,34 +33,28 @@ import {
 
 type Props = {
   rifaId: string;
-  rifaTitle: string;
   numbers: string[];
   reservaIds: string[];
   amount: number;
-  unitPrice: number;
   paymentMethodType: ManualPaymentMethodType;
   creatorPaymentPhone: string | null;
   creatorPaymentQrUrl: string | null;
   creatorPaymentAccountLabel: string | null;
   creatorAccountHolderName: string | null;
-  creatorName: string | null;
   participantUserId: string;
 };
 
 export default function NequiCheckoutPane(props: Props) {
   const {
     rifaId,
-    rifaTitle,
     numbers,
     reservaIds,
     amount,
-    unitPrice,
     paymentMethodType,
     creatorPaymentPhone,
     creatorPaymentQrUrl,
     creatorPaymentAccountLabel,
     creatorAccountHolderName,
-    creatorName,
     participantUserId
   } = props;
   const supabase = createClient();
@@ -183,36 +177,11 @@ export default function NequiCheckoutPane(props: Props) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-            {/* Datos pago */}
+            {/* Datos para pagar al creador */}
             <div className="space-y-3">
-              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
-                <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  Pagarás
-                </div>
-                <div className="text-3xl font-black tabular-nums tracking-tight text-slate-900">
-                  ${amount.toLocaleString("es-CO")}
-                </div>
-                <div className="text-xs text-slate-500">
-                  {numbers.length} números × ${unitPrice.toLocaleString("es-CO")}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {numbers.map((n) => (
-                    <span
-                      key={n}
-                      className="inline-flex min-w-[2.25rem] justify-center rounded-md bg-gradient-to-br from-brand-rose to-brand-violet px-2 py-1 text-xs font-black text-white"
-                    >
-                      {n}
-                    </span>
-                  ))}
-                </div>
-                <div className="mt-2 text-xs text-slate-500 truncate">
-                  <span className="font-semibold">Rifa:</span> {rifaTitle}
-                </div>
-              </div>
-
               <div className="rounded-xl border border-cyan-200 bg-white p-4 space-y-3">
                 <div className="text-xs font-bold uppercase tracking-wide text-cyan-700">
-                  Datos del creador {creatorName ? `· ${creatorName}` : ""}
+                  Datos para pagar
                 </div>
 
                 {creatorAccountHolderName ? (

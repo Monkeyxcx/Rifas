@@ -58,8 +58,7 @@ export default function RifaDetailActions(props: Props) {
   const [selected, setSelected] = useState<string[]>(safeInitial);
   const [loading, setLoading] = useState(false);
 
-  const subtotal = selected.length * numberPrice;
-  const total = subtotal;
+  const total = selected.length * numberPrice;
 
   const reserveAndPay = async () => {
     if (loading) return;
@@ -115,10 +114,23 @@ export default function RifaDetailActions(props: Props) {
             ? (body.error ??
                `Algunos números ya fueron reservados. Actualiza y vuelve a elegir.`) + failedNum
             : body.error ?? "Intenta nuevamente en 30 segundos.";
-        void showError({
-          title: r.status === 409 ? "Números no disponibles" : "No se pudo reservar",
-          message: msg
-        });
+        if (
+          body.manual_methods_missing &&
+          typeof body.setup_url === "string" &&
+          body.setup_url.startsWith("/rifas/crear?editar=")
+        ) {
+          void showError({
+            title: "Cobros no habilitados",
+            html:
+              `${msg}<br/><br/>Si eres el creador, habilítalos aquí: ` +
+              `<a href="${body.setup_url}" style="font-weight:bold;text-decoration:underline">Editar cobros manuales</a>.`
+          });
+        } else {
+          void showError({
+            title: r.status === 409 ? "Números no disponibles" : "No se pudo reservar",
+            message: msg
+          });
+        }
         return;
       }
       const reservaId: string =
@@ -230,12 +242,6 @@ export default function RifaDetailActions(props: Props) {
               </div>
             )}
             <div className="space-y-0.5 pt-1 border-t border-slate-200/70">
-              <div className="flex items-center justify-between text-[11px] text-slate-500">
-                <span>Subtotal</span>
-                <span className="font-numbers tabular-nums font-semibold text-slate-700">
-                  {formatCurrency(subtotal)}
-                </span>
-              </div>
               <div className="flex items-center justify-between pt-1">
                 <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">
                   Total
@@ -244,9 +250,11 @@ export default function RifaDetailActions(props: Props) {
                   {formatCurrency(total)}
                 </span>
               </div>
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[10px] text-emerald-800">
-                El comprador paga exactamente el valor de sus números. El 3% de plataforma lo asume el creador al llegar a 50 boletas vendidas.
-              </div>
+              {salesBlockedByCreatorFee ? null : (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[10px] text-emerald-800">
+                  El comprador paga exactamente el valor de sus números. El 3% de plataforma lo asume el creador al llegar a 50 boletas vendidas.
+                </div>
+              )}
             </div>
           </div>
 

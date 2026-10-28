@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import type { NequiPayment } from "@/lib/types";
 import { getManualPaymentLabel } from "@/lib/manual-payments";
+import { showConfirm } from "@/lib/ui/modals";
 
 type Props = {
   rifaId: string;
@@ -93,6 +94,34 @@ export default function VoucherReviewList({
           ? "Pago aprobado y reservas marcadas como pagadas."
           : "Pago marcado como rechazado."
       );
+      router.refresh();
+    } catch (err: any) {
+      setMsg("Error: " + (err?.message ?? String(err)));
+    } finally {
+      setLoading((l) => ({ ...l, [id]: false }));
+    }
+  }
+
+  async function removeVoucher(id: string, status: string) {
+    const okGo = await showConfirm({
+      title: "Eliminar comprobante",
+      message:
+        status === "approved"
+          ? "Se eliminará el comprobante APROBADO: los números volverán a liberarse (paid → cancelled), se borrará el pago registrado y se avisará al participante. ¿Continuar?"
+          : "Se eliminará este comprobante y el participante podrá enviar uno nuevo. ¿Continuar?",
+      confirmText: "Sí, eliminar",
+      dangerMode: true
+    });
+    if (!okGo) return;
+    try {
+      setLoading((l) => ({ ...l, [id]: true }));
+      setMsg("");
+      const res = await fetch(`/api/nequi-payments/${id}`, {
+        method: "DELETE"
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+      setMsg("Comprobante eliminado. El proceso puede realizarse de nuevo.");
       router.refresh();
     } catch (err: any) {
       setMsg("Error: " + (err?.message ?? String(err)));
@@ -197,9 +226,9 @@ export default function VoucherReviewList({
 
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="mb-3 w-full grid grid-cols-3">
-          <TabsTrigger value="pending">Pendientes ({totalPending})</TabsTrigger>
-          <TabsTrigger value="approved">Aprobados ({totalApproved})</TabsTrigger>
-          <TabsTrigger value="rejected">Rechazados ({totalRejected})</TabsTrigger>
+          <TabsTrigger value="pending">Pendientes</TabsTrigger>
+          <TabsTrigger value="approved">Aprobados</TabsTrigger>
+          <TabsTrigger value="rejected">Rechazados</TabsTrigger>
         </TabsList>
         {(["pending", "approved", "rejected"] as const).map((tab) => {
           const rows = payments.filter((p) => p.status === tab);
@@ -291,7 +320,7 @@ export default function VoucherReviewList({
                           <div className="grid gap-2 sm:grid-cols-2 text-xs">
                             <div className="rounded-lg bg-white/70 border border-slate-200 p-2.5">
                               <div className="font-bold text-slate-600 uppercase tracking-wide text-[10px]">
-                                Números de referencia
+                                Datos del pago
                               </div>
                               <div className="mt-1 space-y-0.5 text-slate-700">
                                 {p.payer_phone ? (
@@ -308,47 +337,47 @@ export default function VoucherReviewList({
                                 ) : null}
                               </div>
                             </div>
-                            <div className="rounded-lg bg-white/70 border border-slate-200 p-2.5">
-                              <div className="font-bold text-slate-600 uppercase tracking-wide text-[10px]">
-                                Revisión
-                              </div>
-                              <div className="mt-1 text-slate-700 space-y-0.5">
-                                {p.reviewed_at ? (
-                                  <>
-                                    <div>
-                                      <span className="font-semibold">Fecha:</span>{" "}
-                                      {new Date(p.reviewed_at).toLocaleString("es-CO")}
-                                    </div>
-                                    {p.review_notes ? (
-                                      <div className="truncate">
-                                        <span className="font-semibold">Nota:</span>{" "}
-                                        {p.review_notes}
-                                      </div>
-                                    ) : null}
-                                  </>
-                                ) : (
-                                  <div className="text-slate-500 italic">
-                                    Pendiente por validar
+                            {p.reviewed_at ? (
+                              <div className="rounded-lg bg-white/70 border border-slate-200 p-2.5">
+                                <div className="font-bold text-slate-600 uppercase tracking-wide text-[10px]">
+                                  Revisión
+                                </div>
+                                <div className="mt-1 text-slate-700 space-y-0.5">
+                                  <div>
+                                    <span className="font-semibold">Fecha:</span>{" "}
+                                    {new Date(p.reviewed_at).toLocaleString("es-CO")}
                                   </div>
-                                )}
+                                  {p.review_notes ? (
+                                    <div className="truncate">
+                                      <span className="font-semibold">Nota:</span>{" "}
+                                      {p.review_notes}
+                                    </div>
+                                  ) : null}
+                                </div>
                               </div>
-                            </div>
+                            ) : null}
                           </div>
 
                           {p.status === "pending" ? (
                             <div className="space-y-2 border-t border-slate-200/70 pt-3">
                               <div>
                                 <Label className="text-[11px] font-bold text-slate-600">
-                                  Nota para el participante (opcional)
+                                  Nota para el participante (solo si vas a rechazar)
                                 </Label>
                                 <Input
                                   value={notes[p.id] || ""}
                                   onChange={(e) =>
                                     setNotes((n) => ({ ...n, [p.id]: e.target.value }))
                                   }
-                                  placeholder="Ej: comprobante OK / monto no coincide"
+                                  placeholder="Ej: monto no coincide, comprobante ilegible"
                                   className="mt-1 h-9 text-xs"
                                 />
+                                {(notes[p.id] || "").trim() ? (
+                                  <p className="mt-1 text-[11px] font-semibold text-rose-600">
+                                    Escribiste una nota: solo podrás rechazar. Para aprobar,
+                                    deja la nota vacía.
+                                  </p>
+                                ) : null}
                               </div>
                               <div className="flex gap-2 justify-end flex-wrap">
                                 <Button
@@ -363,14 +392,33 @@ export default function VoucherReviewList({
                                 </Button>
                                 <Button
                                   size="sm"
-                                  className="h-9 !bg-gradient-to-r from-emerald-500 to-green-600 !text-white font-bold"
-                                  disabled={loading[p.id]}
+                                  className="h-9 !bg-gradient-to-r from-emerald-500 to-green-600 !text-white font-bold disabled:opacity-50"
+                                  disabled={loading[p.id] || Boolean((notes[p.id] || "").trim())}
+                                  title={
+                                    (notes[p.id] || "").trim()
+                                      ? "Quita la nota para poder aprobar"
+                                      : "Aprobar y marcar reservas como pagadas"
+                                  }
                                   onClick={() => review(p.id, "approved")}
                                 >
                                   <CheckCircle2 className="mr-1 h-4 w-4" />
                                   {loading[p.id] ? "Aprobando..." : "Aprobar y marcar como pagado"}
                                 </Button>
                               </div>
+                            </div>
+                          ) : null}
+                          {p.status !== "pending" ? (
+                            <div className="flex justify-end border-t border-slate-200/70 pt-3">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 !border-slate-300 !text-slate-600 hover:!bg-rose-50 hover:!text-rose-700 hover:!border-rose-200 text-xs"
+                                disabled={loading[p.id]}
+                                onClick={() => removeVoucher(p.id, p.status)}
+                              >
+                                <XCircle className="mr-1 h-3.5 w-3.5" />
+                                {loading[p.id] ? "Eliminando..." : "Eliminar comprobante"}
+                              </Button>
                             </div>
                           ) : null}
                         </div>

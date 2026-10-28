@@ -509,9 +509,6 @@ export default async function CheckoutPage({
                       <Ticket className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-brand-rose shrink-0" />
                       <span className="truncate">Tus números</span>
                     </h4>
-                    <Badge variant="secondary" className="font-numbers tabular-nums !text-[10px] sm:!text-xs py-0 shrink-0">
-                      {numbersArr.length} Nº
-                    </Badge>
                   </div>
 
                   <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 gap-1 sm:gap-1.5 sm:gap-2.5 w-full min-w-0">
@@ -651,11 +648,6 @@ export default async function CheckoutPage({
                   {/* RESUMEN TOTAL */}
                   <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-2.5 sm:p-3 sm:p-4 w-full min-w-0">
                     <div className="space-y-1.5 text-[11px] sm:text-xs sm:text-sm w-full min-w-0">
-                      <div className="flex justify-between gap-2 text-slate-500 min-w-0">
-                        <span className="truncate min-w-0 flex-1">{numbersArr.length} × {formatCurrency(unitPrice, currency)}</span>
-                        <span className="font-numbers tabular-nums shrink-0 whitespace-nowrap">{formatCurrency(subtotal, currency)}</span>
-                      </div>
-                      <Separator className="my-1.5 sm:my-2" />
                       <div className="flex items-baseline justify-between gap-2 min-w-0">
                         <span className="text-[10px] sm:text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 shrink-0 whitespace-nowrap">
                           Total
@@ -705,8 +697,6 @@ export default async function CheckoutPage({
                             reservaIds={reservas.map((r) => r.id)}
                             numbers={numbersArr}
                             rifaId={rifa.id}
-                            rifaTitle={rifa.title}
-                            creatorName={rifa.creator?.full_name ?? "Creador"}
                             creatorAccountHolderName={creatorAccountHolderName}
                             creatorPaymentPhone={method === "nequi" ? nequiPhoneFinal || null : null}
                             creatorPaymentQrUrl={
@@ -722,7 +712,6 @@ export default async function CheckoutPage({
                                 : null
                             }
                             paymentMethodType={method}
-                            unitPrice={unitPrice}
                             amount={total}
                             participantUserId={user.id}
                           />
