@@ -11,6 +11,8 @@ const MIN_NUMBERS = 1;
 const RESERVATION_GRACE_MINUTES = 15;
 
 function isMockMode(): boolean {
+  // P0: el modo mock NUNCA aplica en producción aunque falte la env.
+  if (process.env.NODE_ENV === "production") return false;
   return (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder") ||
@@ -87,7 +89,8 @@ export async function POST(req: Request) {
   let rifaFromDb: Rifa | null = null;
 
   // ======================================================================
-  // AUTH: Intentamos obtener usuario. Fallback mock crea user anonimo demo.
+  // AUTH: obligatoria en producción. Sin sesión => 401 (P0: antes creaba
+  // demo-user-* y devolvía 201 mock_mode sin escribir en DB).
   // ======================================================================
   let userId: string | null = null;
   let userEmail: string | null = null;
@@ -105,12 +108,18 @@ export async function POST(req: Request) {
           null;
       }
     } catch (err) {
-      console.warn("[reservar] supabase auth fallo, fallback mock mode", err);
+      console.warn("[reservar] supabase auth fallo", err);
     }
   }
 
-  const mockUser = !userId;
-  if (mockUser) {
+  if (!userId) {
+    if (!isMockMode()) {
+      return NextResponse.json(
+        { ok: false, error: "Debes iniciar sesión para reservar números." },
+        { status: 401 }
+      );
+    }
+    // Solo demo local sin env de Supabase (nunca en producción).
     userId = `demo-user-${generateUUID().slice(0, 8)}`;
     userEmail = "comprador@demo.rifascenter.com";
     displayName = "Comprador Demo";
@@ -163,7 +172,7 @@ export async function POST(req: Request) {
   // ======================================================================
   // FALLBACK MOCK: si no hay Supabase real, devolvemos reserva demo.
   // ======================================================================
-  if (isMockMode() || mockUser) {
+  if (isMockMode()) {
     return NextResponse.json(
       {
         ok: true,
@@ -252,7 +261,8 @@ export async function POST(req: Request) {
             ok: false,
             error:
               "Esta rifa todavía no tiene métodos manuales de cobro activos. El creador debe habilitar Nequi o Bancolombia antes de vender.",
-            manual_methods_missing: true
+            manual_methods_missing: true,
+            setup_url: `/rifas/crear?editar=${rifaId}`
           },
           { status: 409 }
         );

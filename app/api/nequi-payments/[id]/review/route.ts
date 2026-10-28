@@ -13,13 +13,24 @@ type Body = {
   notes?: string;
 };
 
-export async function POST(req: NextRequest, { params }: any) {
-  const id = params?.id as string | undefined;
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   if (!id) return NextResponse.json({ error: "id missing" }, { status: 400 });
 
   const body = (await req.json().catch(() => ({}))) as Body;
   if (body?.status !== "approved" && body?.status !== "rejected") {
     return NextResponse.json({ error: "status invalid" }, { status: 400 });
+  }
+  // Las notas son solo para rechazos: aprobar con nota queda bloqueado en UI
+  // y también aquí para que no se cuele por API directa.
+  if (body.status === "approved" && (body.notes || "").trim()) {
+    return NextResponse.json(
+      { error: "no se puede aprobar con nota: quita la nota o rechaza el comprobante" },
+      { status: 400 }
+    );
   }
 
   const authSb = await createClient();
