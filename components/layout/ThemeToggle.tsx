@@ -16,7 +16,9 @@ export function ThemeToggle({ className }: Props) {
 
   useEffect(() => setMounted(true), []);
 
-  const isDark = theme === "dark";
+  // Hasta el mount, render determinista igual al servidor (evita hydration mismatch
+  // en aria-label/title cuando el tema guardado difiere del default).
+  const isDark = mounted && theme === "dark";
 
   return (
     <Button
@@ -29,7 +31,7 @@ export function ThemeToggle({ className }: Props) {
       onClick={() => setTheme(isDark ? "light" : "dark")}
       disabled={!mounted}
     >
-      {mounted && isDark ? (
+      {isDark ? (
         <Sun className="h-4 w-4" />
       ) : (
         <Moon className="h-4 w-4" />
